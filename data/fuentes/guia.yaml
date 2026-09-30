@@ -1,0 +1,21 @@
+# Manifiesto del PDF de la guía (ADR-11). El PDF no se versiona: se descarga de
+# la fuente oficial o del Release de GitHub y se comprueba con el SHA-256.
+titulo: "¿Cómo podemos innovar en los servicios públicos desde la experiencia usuaria?"
+serie: "Permitido Innovar: Guías para transformar el Estado chileno"
+autoria: >-
+  Laboratorio de Gobierno (Ministerio de Hacienda), Gobierno de Chile, y
+  Observatorio UX de la Universidad Tecnológica Metropolitana
+anio: 2025
+licencia: CC BY-NC-SA 4.0
+url_oficial: null  # por completar
+pdf:
+  archivo: Guia_ComoInnovar.pdf
+  sha256: 264ff59440406744edf2a05c4cf3b3725af2c6ca0f8cffde2ef9d32e12ee45cf
+  paginas: 168
+extraccion:
+  herramienta: docling
+  version: "2.131.0"
+  pipeline: standard
+  ocr: false
+  fecha: 2026-09-30
+  corpus: v1

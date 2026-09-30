@@ -42,3 +42,13 @@ dist-ssr
 .roo
 .trae
 .windsurf
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Ingesta: salida cruda de Docling e índice local (se regeneran, ADR-11)
+data/docling/
+storage/

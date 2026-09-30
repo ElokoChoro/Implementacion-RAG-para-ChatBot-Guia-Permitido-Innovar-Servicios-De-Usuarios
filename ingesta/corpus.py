@@ -1,0 +1,207 @@
+"""
+Paso 2: convierte el JSON de Docling en el corpus versionado
+data/corpus/<VERSION_CORPUS>/paginas.jsonl: un bloque por página, con sección,
+actividad, herramienta y etapa, para citar «sección, p. N» y filtrar por etapa.
+
+    python -m ingesta.corpus
+    python -m ingesta.corpus --ver 148   # muestra cómo quedó una página
+
+Viene de comun/docling_a_guia.py y comun/preparar_guia.py del laboratorio, pero
+lee las páginas directo del DoclingDocument en vez de pasar por un Markdown.
+"""
+from __future__ import annotations
+
+import argparse
+import html
+import json
+import re
+import sys
+
+from docling_core.types.doc.document import (DEFAULT_EXPORT_LABELS, ContentLayer, DocItemLabel,
+                                             DoclingDocument, PictureItem, TextItem)
+
+from ingesta.extraer import RAIZ, SALIDA as ENTRADA
+from app.rag import config
+
+# Rango que entra al índice (nota Corpus): sin portada, prólogos, «cómo
+# elaboramos» ni referencias.
+PAGINA_MINIMA, PAGINA_MAXIMA = 13, 161
+PALABRAS_MINIMAS = 15  # descarta portadillas casi vacías
+
+# --------------------------------------------------------------------------
+# Estructura de la guía, tomada de sus índices (págs. 4 a 6).
+# Número = página donde empieza.
+# --------------------------------------------------------------------------
+SECCIONES = [
+    (1, "Portada y créditos"),
+    (8, "Prólogos"),
+    (10, "Innovación pública y democracia"),
+    (13, "Introducción"),
+    (23, "Lo primero: actividades base para la gestión de la experiencia usuaria"),
+    (27, "Propósitos"),
+    (28, "Propósito 1: Comprender la experiencia actual de las personas usuarias"),
+    (32, "Propósito 2: Incorporar perspectiva usuaria al quehacer institucional"),
+    (36, "Propósito 3: Mejorar la satisfacción con un servicio"),
+    (40, "Propósito 4: Mejorar la colaboración interna para la experiencia usuaria"),
+    (44, "Propósito 5: Diseñar e implementar un nuevo servicio"),
+    (51, "Actividades y herramientas"),
+    (158, "Glosario"),
+    (162, "¿Cómo elaboramos esta guía?"),
+    (164, "Referencias"),
+]
+
+ACTIVIDADES = [
+    (54, "Actores"), (58, "Adopción"), (64, "Claves perceptuales"),
+    (68, "Competencias"), (72, "Comunicación"), (76, "Contexto institucional"),
+    (80, "Creación de valor"), (86, "Ecosistema de canales"), (90, "Estándares"),
+    (94, "Experiencia modelo"), (100, "Habilitación y Expectativas"),
+    (104, "Interacciones"), (108, "Investigación"), (112, "Marco Institucional"),
+    (116, "Medición"), (120, "Modelo operativo"), (126, "Momentos críticos"),
+    (132, "Necesidades"), (140, "Personas"), (150, "Sensibilización"),
+    (154, "Vinculación"),
+]
+
+HERRAMIENTAS = sorted([
+    (152, "Ficha de actividades de sensibilización"),
+    (88, "Ficha de caracterización de canales"),
+    (114, "Ficha de caracterización institucional"),
+    (70, "Ficha de competencias para la experiencia"),
+    (78, "Ficha de contexto institucional"),
+    (92, "Ficha de estándares de servicio"),
+    (60, "Ficha de intervenciones para la adopción"),
+    (66, "Lista de claves perceptuales"),
+    (56, "Mapa de actores del ecosistema del servicio"),
+    (82, "Mapa de co-producción valor"),
+    (102, "Mapa de expectativas"),
+    (128, "Mapa de momentos críticos"),
+    (142, "Mapa de perfiles de personas usuarias"),
+    (134, "Mapa del problema completo"),
+    (156, "Matriz de vinculación entre necesidades y servicios"),
+    (148, "Perfil de persona usuaria"),
+    (136, "Pilares del servicio"),
+    (74, "Plan de comunicaciones del servicio"),
+    (118, "Plan de evaluación de estándares de servicio"),
+    (110, "Plan de investigación de experiencia usuaria"),
+    (122, "Plano del servicio"),
+    (106, "Viaje de la persona usuaria"),
+    (96, "Viaje ideal de la persona usuaria"),
+])
+
+# Etapas de la plataforma SSP-UXLab (Propósito 1) -> actividad de la guía
+ETAPAS = {
+    1: "Investigación", 2: "Personas", 3: "Habilitación y Expectativas",
+    4: "Necesidades", 5: "Vinculación", 6: "Medición", 7: "Momentos críticos",
+}
+
+
+def _ultimo_que_empieza_antes(tabla, pagina):
+    candidato = None
+    for inicio, nombre in tabla:
+        if inicio <= pagina:
+            candidato = (inicio, nombre)
+    return candidato
+
+
+def ubicar(pagina: int) -> dict:
+    """Devuelve sección, actividad, herramienta y etapa para una página."""
+    seccion = _ultimo_que_empieza_antes(SECCIONES, pagina)[1]
+    actividad = herramienta = ""
+    if 54 <= pagina < 158:
+        act = _ultimo_que_empieza_antes(ACTIVIDADES, pagina)
+        actividad = act[1]
+        her = _ultimo_que_empieza_antes(HERRAMIENTAS, pagina)
+        # la herramienta solo cuenta si empieza dentro de la actividad actual
+        if her and her[0] >= act[0]:
+            herramienta = her[1]
+    etapa = next((n for n, a in ETAPAS.items() if a == actividad), None)
+    return {"seccion": seccion, "actividad": actividad,
+            "herramienta": herramienta, "etapa": etapa}
+
+
+# --------------------------------------------------------------------------
+# Texto de cada página desde Docling
+# --------------------------------------------------------------------------
+FIGURA = "@@FIGURA@@"
+CAPAS = {ContentLayer.BODY, ContentLayer.FURNITURE}
+# Encabezados sí (traen el nombre de la actividad o herramienta); pies de página
+# no (solo tienen el número de página, que ya va en los metadatos).
+ETIQUETAS = DEFAULT_EXPORT_LABELS - {DocItemLabel.PAGE_FOOTER}
+
+
+def texto_figura(doc: DoclingDocument, figura: PictureItem) -> str:
+    """
+    Texto que Docling encontró dentro de una figura (láminas, fichas, viajes,
+    listas de actividades), unido en un párrafo: viene cortado línea a línea.
+    """
+    partes = [it.text for it, _ in doc.iterate_items(root=figura, traverse_pictures=True,
+                                                    included_content_layers=CAPAS)
+              if isinstance(it, TextItem) and it.text.strip()]
+    texto = re.sub(r"\s+", " ", " ".join(partes)).strip()
+    return f"[Figura] {texto}" if len(texto.split()) >= 3 else ""
+
+
+def texto_pagina(doc: DoclingDocument, n: int) -> str:
+    texto = doc.export_to_markdown(page_no=n, image_placeholder=FIGURA, escape_html=False,
+                                   escape_underscores=False, compact_tables=True,
+                                   labels=ETIQUETAS, included_content_layers=CAPAS)
+    # Cada marcador de imagen se reemplaza, en orden, por el texto de su figura.
+    figuras = [it for it, _ in doc.iterate_items(page_no=n, included_content_layers=CAPAS)
+               if isinstance(it, PictureItem)]
+    if texto.count(FIGURA) != len(figuras):
+        sys.exit(f"Pág. {n}: {texto.count(FIGURA)} marcadores y {len(figuras)} figuras")
+    for figura in figuras:
+        texto = texto.replace(FIGURA, texto_figura(doc, figura), 1)
+    texto = html.unescape(texto)
+    texto = "\n".join(linea.rstrip() for linea in texto.split("\n"))
+    return re.sub(r"\n{3,}", "\n\n", texto).strip()
+
+
+def paginas(doc: DoclingDocument) -> list[dict]:
+    registros = []
+    for n in sorted(doc.pages):
+        if not PAGINA_MINIMA <= n <= PAGINA_MAXIMA:
+            continue
+        texto = texto_pagina(doc, n)
+        if len(texto.split()) < PALABRAS_MINIMAS:
+            continue
+        ubic = ubicar(n)
+        partes = [x for x in (ubic["seccion"] if not ubic["actividad"] else None,
+                              ubic["actividad"], ubic["herramienta"]) if x]
+        registros.append({
+            "id": f"guia-p{n:03d}",
+            "texto": texto,
+            "fuente": f"{' › '.join(partes)}, p. {n}",
+            "pagina_inicio": n,
+            "pagina_fin": n,
+            **ubic,
+            "version_corpus": config.VERSION_CORPUS,
+        })
+    return registros
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--ver", type=int, help="muestra la página indicada y sale")
+    args = ap.parse_args()
+
+    if not ENTRADA.exists():
+        sys.exit(f"Falta {ENTRADA.relative_to(RAIZ)}. Ejecuta primero:  "
+                 "python -m ingesta.extraer /ruta/a/Guia_ComoInnovar.pdf")
+    registros = paginas(DoclingDocument.load_from_json(ENTRADA))
+
+    if args.ver:
+        r = next((r for r in registros if r["pagina_inicio"] == args.ver), None)
+        print(f"=== {r['fuente']}  (etapa {r['etapa']})\n\n{r['texto']}" if r
+              else "Página no encontrada (o fuera del rango indexado).")
+        return
+
+    config.RUTA_PAGINAS.parent.mkdir(parents=True, exist_ok=True)
+    config.RUTA_PAGINAS.write_text(
+        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in registros), encoding="utf-8")
+    palabras = sum(len(r["texto"].split()) for r in registros)
+    print(f"{len(registros)} páginas · {palabras:,} palabras · págs. {PAGINA_MINIMA}–{PAGINA_MAXIMA} "
+          f"-> {config.RUTA_PAGINAS.relative_to(RAIZ)}")
+
+
+if __name__ == "__main__":
+    main()

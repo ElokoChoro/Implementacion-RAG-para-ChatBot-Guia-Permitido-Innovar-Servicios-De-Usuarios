@@ -1,0 +1,74 @@
+{
+ "bge-m3 (FlagEmbedding)": {
+  "dim": 1024,
+  "carga_s": 7.7,
+  "indexar_s": 18.3,
+  "consulta_ms": 20,
+  "denso": {
+   "recall@4": 95.7,
+   "recall_pagina@4": 89.4,
+   "mrr@4": 0.906,
+   "fallos": [
+    "P-009",
+    "P-053"
+   ],
+   "recall@20": 100.0
+  },
+  "reranker": {
+   "recall@4": 97.9,
+   "recall_pagina@4": 91.5,
+   "mrr@4": 0.952,
+   "fallos": [
+    "P-009"
+   ]
+  }
+ },
+ "qwen3-embedding:0.6b (Ollama)": {
+  "dim": 1024,
+  "carga_s": 0.0,
+  "indexar_s": 48.5,
+  "consulta_ms": 76,
+  "denso": {
+   "recall@4": 95.7,
+   "recall_pagina@4": 91.5,
+   "mrr@4": 0.871,
+   "fallos": [
+    "P-009",
+    "P-053"
+   ],
+   "recall@20": 100.0
+  },
+  "reranker": {
+   "recall@4": 100.0,
+   "recall_pagina@4": 91.5,
+   "mrr@4": 0.957,
+   "fallos": []
+  },
+  "reranker_ms": 5657
+ },
+ "embeddinggemma (Ollama)": {
+  "dim": 768,
+  "carga_s": 0.0,
+  "indexar_s": 21.1,
+  "consulta_ms": 55,
+  "denso": {
+   "recall@4": 95.7,
+   "recall_pagina@4": 87.2,
+   "mrr@4": 0.911,
+   "fallos": [
+    "P-009",
+    "P-050"
+   ],
+   "recall@20": 100.0
+  },
+  "reranker": {
+   "recall@4": 97.9,
+   "recall_pagina@4": 91.5,
+   "mrr@4": 0.952,
+   "fallos": [
+    "P-009"
+   ]
+  },
+  "reranker_ms": 4956
+ }
+}
