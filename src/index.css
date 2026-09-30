@@ -1,0 +1,60 @@
+:root {
+  --bg: #0b0d12;
+  --bg-elevated: #12151c;
+  --bg-sidebar: #0e1117;
+  --bg-hover: #1a1f2a;
+  --bg-active: #1e2533;
+  --border: #242a36;
+  --text: #e8ecf4;
+  --text-muted: #8b95a8;
+  --text-faint: #5c6576;
+  --accent: #5eead4;
+  --accent-dim: rgba(94, 234, 212, 0.12);
+  --accent-strong: #2dd4bf;
+  --user-bubble: #243044;
+  --assistant-bubble: #161b24;
+  --danger: #f87171;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  --radius: 14px;
+  --sans: "Segoe UI", system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a3140;
+  border-radius: 8px;
+}
