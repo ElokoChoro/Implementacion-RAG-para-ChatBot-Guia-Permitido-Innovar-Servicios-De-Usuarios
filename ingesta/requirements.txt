@@ -1,0 +1,4 @@
+# Ingesta: lo mismo que la consulta, más Docling para extraer el PDF.
+-r ../backend/requirements.txt
+docling>=2.131,<3
+pyyaml>=6
