@@ -1,68 +1,215 @@
-# Módulo RAG · Permitido Innovar
+<div align="center">
 
-Asistente que responde preguntas usando solo la guía «¿Cómo podemos innovar en los servicios públicos
-desde la experiencia usuaria?», cita la sección y página de origen y funciona con modelos locales.
+# 📘 Módulo RAG · Permitido Innovar
 
-| Carpeta | Contenido |
-| --- | --- |
-| `src/` | Interfaz de chat de demo (React + Vite) |
-| `backend/app/rag/` | Modelos, índice y recuperación del RAG |
-| `ingesta/` | Extraer la guía → corpus con metadatos → índice vectorial |
-| `data/corpus/` | Corpus extraído y versionado ([README](data/corpus/README.md)) |
-| `data/fuentes/` | Manifiesto del PDF (el PDF no se versiona) |
-| `eval/` | Set de preguntas y comparaciones de recuperación ([README](eval/README.md)) |
-| `supabase/migrations/` | Esquema de la base en Supabase: tabla del índice con pgvector |
+**Asistente que responde preguntas usando solo la guía**<br>
+**«¿Cómo podemos innovar en los servicios públicos desde la experiencia usuaria?»**
 
-## Pipeline
+Cita la sección y la página de cada respuesta, dice «No encuentro esa información en la guía.»
+cuando la guía no responde y corre entero con modelos locales.
 
-```text
-PDF ──Docling standard, sin OCR──▶ JSON ──▶ paginas.jsonl ──SentenceSplitter 400/50──▶ fragmentos
-                                                                                      │ bge-m3 (FlagEmbedding)
-pregunta ──bge-m3──▶ top 20 por coseno en el índice ──bge-reranker-v2-m3──▶ top 4 ◀───┘
-                                                                               │ umbral
-                             «No encuentro esa información en la guía.» ◀──no──┤ ¿algún fragmento ≥ UMBRAL?
-                                                                               │ sí
-                             respuesta con citas y confianza ◀──gemma3:4b (Ollama)
+<br>
+
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![LlamaIndex](https://img.shields.io/badge/LlamaIndex-0.14-7B3FE4?style=for-the-badge)
+![Ollama](https://img.shields.io/badge/Ollama-gemma3:4b-000000?style=for-the-badge&logo=ollama&logoColor=white)
+![Hugging Face](https://img.shields.io/badge/BAAI-bge--m3_+_reranker-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
+
+![Chroma](https://img.shields.io/badge/Chroma-local-FF6446?style=for-the-badge)
+![Supabase](https://img.shields.io/badge/Supabase-pgvector-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![Docling](https://img.shields.io/badge/Docling-2.131-1F6FEB?style=for-the-badge)
+![React](https://img.shields.io/badge/React-19_+_Vite-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+
+<br>
+
+[Cómo funciona](#-cómo-funciona) ·
+[Resultados](#-resultados) ·
+[Inicio rápido](#-inicio-rápido) ·
+[Supabase](#-índice-en-supabase-pgvector) ·
+[Evaluación](eval/README.md) ·
+[Para agentes de código](AGENTS.md)
+
+</div>
+
+---
+
+## ✨ Qué hace
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🎯 Responde solo desde la guía
+Si ningún fragmento supera el umbral del reranker, contesta
+«No encuentro esa información en la guía.» **sin llamar al LLM**: no hay contexto del que pueda
+inventar.
+
+</td>
+<td width="50%" valign="top">
+
+### 📍 Cita sección y página
+Cada respuesta trae sus fuentes como «Sección › Herramienta, p. N», tomadas de los metadatos del
+corpus, no del texto del LLM.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🔒 Todo corre en local
+Embeddings, reranker y LLM corren en tu equipo. Ni la guía ni las preguntas salen de él (salvo los
+vectores, si eliges el índice en Supabase).
+
+</td>
+<td width="50%" valign="top">
+
+### 📊 Medido, no supuesto
+58 preguntas de evaluación, comparación de modelos, calibración del umbral y de la confianza. Los
+resultados se versionan en [`eval/`](eval/README.md).
+
+</td>
+</tr>
+</table>
+
+---
+
+## 📈 Resultados
+
+Sobre el set de 58 preguntas ([detalle](eval/README.md)), en un Mac M2 de 8 GB:
+
+<div align="center">
+
+| | Métrica | Valor |
+| :---: | --- | :---: |
+| 🔎 | Sección correcta entre los 4 fragmentos (`recall@4`, con reranker) | **97,9 %** |
+| 🥇 | Posición del primer fragmento correcto (`MRR@4`) | **0,952** |
+| 🚫 | Preguntas fuera de la guía rechazadas (umbral 0,5) | **100 %** |
+| ✅ | Preguntas respondibles rechazadas por error | **0 %** |
+| 🟢 | Respondibles con confianza `alta` (reranker ≥ 0,9) | **43 de 46** |
+
+</div>
+
+---
+
+## 🧭 Cómo funciona
+
+```mermaid
+flowchart LR
+    subgraph ING["📥 Ingesta (una vez)"]
+        direction LR
+        PDF["📄 PDF de la guía"] -->|"Docling standard<br>sin OCR"| JSON["JSON por página"]
+        JSON --> CORPUS["paginas.jsonl<br>corpus v1"]
+        CORPUS -->|"SentenceSplitter<br>400 / 50"| FRAG["207 fragmentos"]
+        FRAG -->|"bge-m3"| IDX[("Índice<br>Chroma o pgvector")]
+    end
+
+    subgraph CON["💬 Consulta"]
+        direction LR
+        Q["❓ Pregunta"] -->|"bge-m3"| TOP20["Top 20<br>por coseno"]
+        TOP20 -->|"bge-reranker-v2-m3"| TOP4["Top 4"]
+        TOP4 --> U{"¿Algún fragmento<br>≥ 0,5?"}
+        U -->|"no"| NO["🚫 «No encuentro esa<br>información en la guía.»"]
+        U -->|"sí"| LLM["🦙 gemma3:4b<br>en Ollama"]
+        LLM --> OK["✅ Respuesta + citas<br>+ confianza"]
+    end
+
+    IDX -.-> TOP20
 ```
 
-| Pieza | Elección | Configuración (`backend/app/rag/config.py`) |
+| Pieza | Elección | Configuración ([`config.py`](backend/app/rag/config.py)) |
 | --- | --- | --- |
-| Extracción | Docling 2.131, pipeline `standard`, sin OCR | — |
-| Corpus | `v1`, una página por bloque, págs. 13–161 | `VERSION_CORPUS` |
-| Fragmentos | `SentenceSplitter` de LlamaIndex, 400 tokens, solapamiento 50 | `CHUNK_TOKENS`, `CHUNK_OVERLAP` |
-| Embeddings | `BAAI/bge-m3` con FlagEmbedding, densos, 1024 dimensiones | `EMBEDDINGS` |
-| Vector store | Chroma local o pgvector en Supabase, distancia coseno | `ALMACEN`, `RUTA_CHROMA`, `SUPABASE_DB_URL` |
-| Reranker | `BAAI/bge-reranker-v2-m3` con FlagEmbedding, puntaje 0–1 | `RERANKER`, `RERANKER_CANDIDATOS`, `TOP_K`, `USAR_RERANKER` |
-| Umbral | Puntaje del reranker ≥ 0,5; si ningún fragmento llega, se rechaza sin LLM | `UMBRAL` |
-| LLM | `gemma3:4b` en Ollama, temperature 0,1, contexto de 4096 tokens | `LLM`, `TEMPERATURE`, `CONTEXTO_TOKENS`, `MAX_TOKENS_RESPUESTA` |
-| Confianza | Mejor puntaje del reranker: alta ≥ 0,9, media ≥ 0,7, baja el resto | `CONFIANZA_ALTA`, `CONFIANZA_MEDIA` |
-| Hardware | `mps`, `cuda:0` o `cpu`; fp16 por defecto | `DISPOSITIVO`, `FP16` |
+| 📄 Extracción | Docling 2.131, pipeline `standard`, sin OCR | — |
+| 📚 Corpus | `v1`, una página por registro, págs. 13–161 | `VERSION_CORPUS` |
+| ✂️ Fragmentos | `SentenceSplitter` de LlamaIndex, 400 tokens, solapamiento 50 | `CHUNK_TOKENS`, `CHUNK_OVERLAP` |
+| 🧮 Embeddings | `BAAI/bge-m3` con FlagEmbedding, densos, 1024 dimensiones | `EMBEDDINGS` |
+| 🗄️ Vector store | Chroma local o pgvector en Supabase, distancia coseno | `ALMACEN`, `RUTA_CHROMA`, `SUPABASE_DB_URL` |
+| 🏅 Reranker | `BAAI/bge-reranker-v2-m3`, puntaje 0–1, 20 candidatos → 4 | `RERANKER`, `RERANKER_CANDIDATOS`, `TOP_K`, `USAR_RERANKER` |
+| 🚧 Umbral | Puntaje del reranker ≥ 0,5; si nada llega, se rechaza sin LLM | `UMBRAL` |
+| 🦙 LLM | `gemma3:4b` en Ollama, temperature 0,1, contexto de 4096 tokens | `LLM`, `TEMPERATURE`, `CONTEXTO_TOKENS`, `MAX_TOKENS_RESPUESTA` |
+| 🎚️ Confianza | Mejor puntaje del reranker: `alta` ≥ 0,9, `media` ≥ 0,7, `baja` el resto | `CONFIANZA_ALTA`, `CONFIANZA_MEDIA` |
+| 🖥️ Hardware | `mps`, `cuda:0` o `cpu`; fp16 por defecto | `DISPOSITIVO`, `FP16` |
 
-## Decisiones de diseño
+Todos los parámetros se pueden cambiar por variable de entorno o en `.env`.
 
-- **Docling `standard`, sin OCR.** Toma el texto de la capa de texto del PDF y un modelo de layout
-  ordena las columnas y registra la página de cada bloque, que se usa para citar. El pipeline VLM de
-  Docling, que lee cada página como imagen, se descartó: sobre esta guía inventa palabras (~6 % no
-  existen en el PDF), tarda ~40 min y no guarda la página de cada bloque. El texto que está dentro de
-  las láminas y fichas se incluye como párrafo `[Figura] …`.
-- **Una página por registro en el corpus.** Cada página lleva sección, actividad, herramienta y etapa,
-  para citar «sección, p. N» y filtrar por etapa.
-- **bge-m3 + reranker.** bge-m3 es multilingüe, corre local y tiene licencia MIT. Comparado con
-  qwen3-embedding:0.6b y embeddinggemma sobre el set de evaluación, los tres empatan (recall@4 de
-  95,7 %). El reranker sube la recuperación a 97,9 % y ordena mejor los fragmentos (MRR de 0,906 a
-  0,952), a cambio de ~5 s por pregunta. Detalle en [eval/README.md](eval/README.md).
-- **Umbral antes del LLM y confianza desde el reranker.** Si ningún fragmento supera el umbral, la
-  guía no responde la pregunta y se contesta «No encuentro esa información en la guía.» sin llamar al
-  LLM: no hay contexto del que pueda inventar. El LLM todavía puede rechazar si los fragmentos no
-  responden; el prompt lo obliga a empezar con esa frase. La confianza (alta, media o baja) y las
-  fuentes salen del reranker y de los fragmentos, no del texto del LLM, así que no dependen de que un
-  modelo de 4B las escriba bien. Calibración en [eval/README.md](eval/README.md#umbral-de-rechazo).
-- **Todo corre en local.** Los modelos se descargan una vez desde Hugging Face y después funcionan sin
-  red; ni la guía ni las preguntas salen del equipo.
-- **El corpus se versiona y el PDF no.** El índice se reconstruye desde el corpus con un comando; el
-  PDF se identifica por su hash en `data/fuentes/guia.yaml`.
+### La respuesta
 
-## Instalación (Python 3.12)
+`app.rag.generar --json` devuelve la forma del contrato de `POST /ia/consultar-guia`:
+
+| Campo | Contenido |
+| --- | --- |
+| `resultado` | Texto de la respuesta, o «No encuentro esa información en la guía.» |
+| `encontrada` | `false` si se rechazó por el umbral o por el LLM |
+| `confianza` | `alta`, `media` o `baja`, según el reranker; `null` si no se encontró |
+| `fuentes` | Lista con `seccion`, `pagina`, `fuente`, `fragmento` y `puntaje` de cada fragmento |
+| `modelo`, `version_prompt`, `modo` | Qué generó la respuesta, para auditar |
+| `puntaje`, `latencia_s` | Mejor puntaje del reranker y tiempo total |
+
+---
+
+## 🧠 Decisiones de diseño
+
+<details>
+<summary><b>Docling <code>standard</code>, sin OCR</b></summary>
+<br>
+
+Toma el texto de la capa de texto del PDF y un modelo de layout ordena las columnas y registra la
+página de cada bloque, que se usa para citar. El pipeline VLM de Docling, que lee cada página como
+imagen, se descartó: sobre esta guía inventa palabras (~6 % no existen en el PDF), tarda ~40 min y no
+guarda la página de cada bloque. El texto que está dentro de las láminas y fichas se incluye como
+párrafo `[Figura] …`.
+
+</details>
+
+<details>
+<summary><b>Una página por registro en el corpus</b></summary>
+<br>
+
+Cada página lleva sección, actividad, herramienta y etapa, para citar «sección, p. N» y filtrar por
+etapa. Formato en [data/corpus/README.md](data/corpus/README.md).
+
+</details>
+
+<details>
+<summary><b>bge-m3 + reranker</b></summary>
+<br>
+
+bge-m3 es multilingüe, corre local y tiene licencia MIT. Comparado con qwen3-embedding:0.6b y
+embeddinggemma sobre el set de evaluación, los tres empatan (recall@4 de 95,7 %). El reranker sube la
+recuperación a 97,9 % y ordena mejor los fragmentos (MRR de 0,906 a 0,952), a cambio de ~5 s por
+pregunta. Detalle en [eval/README.md](eval/README.md#comparación-de-modelos-de-embeddings).
+
+</details>
+
+<details>
+<summary><b>Umbral antes del LLM y confianza desde el reranker</b></summary>
+<br>
+
+Si ningún fragmento supera el umbral, la guía no responde la pregunta y se contesta sin llamar al
+LLM. El LLM todavía puede rechazar si los fragmentos no responden; el prompt lo obliga a empezar con
+esa frase. La confianza y las fuentes salen del reranker y de los fragmentos, no del texto del LLM,
+así que no dependen de que un modelo de 4B las escriba bien. Calibración en
+[eval/README.md](eval/README.md#umbral-de-rechazo).
+
+</details>
+
+<details>
+<summary><b>El corpus se versiona y el PDF no</b></summary>
+<br>
+
+El índice se reconstruye desde el corpus con un comando; el PDF se identifica por su SHA-256 en
+[`data/fuentes/guia.yaml`](data/fuentes/guia.yaml).
+
+</details>
+
+---
+
+## 🚀 Inicio rápido
+
+> [!IMPORTANT]
+> Necesitas **Python 3.12** y [Ollama](https://ollama.com/download). La primera ejecución descarga
+> bge-m3 y el reranker desde Hugging Face (~2,3 GB cada uno); después corren sin red.
+
+**1. Crea el entorno e instala las dependencias**
 
 ```bash
 python3.12 -m venv .venv
@@ -72,24 +219,49 @@ python3.12 -m venv .venv
 .venv/bin/pip install -r ingesta/requirements.txt
 ```
 
-La consulta sola (sin Docling) necesita únicamente `backend/requirements.txt`. La primera ejecución
-descarga los modelos desde Hugging Face (bge-m3 ~2,3 GB, reranker ~2,3 GB); después corren sin red.
+La consulta sola (sin Docling) necesita únicamente `backend/requirements.txt`.
 
-La generación necesita [Ollama](https://ollama.com/download) corriendo con el LLM (~3,3 GB):
+**2. Descarga el LLM (~3,3 GB)**
 
 ```bash
 ollama pull gemma3:4b
 ```
 
-## Reconstruir el índice
-
-El corpus `v1` ya está en el repositorio, así que basta con indexar:
+**3. Construye el índice.** El corpus `v1` ya está en el repositorio, así que basta con indexar:
 
 ```bash
 .venv/bin/python -m ingesta.indexar
 ```
 
-Para regenerar el corpus desde el PDF (por ejemplo, si cambia la guía o la versión de Docling):
+**4. Pregunta** (desde `backend/`):
+
+```bash
+cd backend && ../.venv/bin/python -m app.rag.generar "¿Qué es un mapa de momentos críticos?" --etapa 7
+```
+
+| Opción | Qué hace |
+| --- | --- |
+| `--json` | Muestra la respuesta con la forma del contrato |
+| `--etapa N` | Le indica al LLM la etapa del proyecto (1 a 7) desde la que se pregunta |
+| `--filtrar-etapa` | Busca solo en la actividad de esa etapa |
+
+Para ver solo la recuperación, sin LLM:
+
+```bash
+cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de momentos críticos?" --etapa 7
+```
+
+Aquí `--etapa` filtra por etapa y `--sin-reranker` muestra el orden solo por similitud, para comparar.
+
+> [!NOTE]
+> En un Mac de 8 GB, con bge-m3, el reranker y gemma3:4b cargados a la vez, falta memoria y cada
+> respuesta tarda entre 50 s y 4 min. Una pregunta rechazada por el umbral no llama al LLM.
+
+<details>
+<summary><b>🔁 Regenerar el corpus desde el PDF</b></summary>
+<br>
+
+Por ejemplo, si cambia la guía o la versión de Docling:
 
 ```bash
 .venv/bin/python -m ingesta.extraer "/ruta/a/Guia_ComoInnovar.pdf"
@@ -100,17 +272,27 @@ Para regenerar el corpus desde el PDF (por ejemplo, si cambia la guía o la vers
 ```
 
 `ingesta.extraer` compara el hash del PDF con `data/fuentes/guia.yaml`. `ingesta.corpus --ver 148`
-muestra cómo quedó una página.
+muestra cómo quedó una página. Un cambio que altere el corpus va en una versión nueva
+(`data/corpus/v2/`), no sobre `v1`.
 
-## Índice en Supabase (pgvector)
+</details>
+
+---
+
+## 🐘 Índice en Supabase (pgvector)
 
 Con `ALMACEN=pgvector` el índice vive en Supabase, en la tabla `public.data_guia_fragmentos`
 (`vector(1024)`, índice HNSW por coseno y RLS sin políticas, así que la API pública no la lee). Los
-embeddings se siguen calculando en local; a Supabase solo llegan los vectores, el texto y los metadatos.
+embeddings se siguen calculando en local; a Supabase solo llegan los vectores, el texto y los
+metadatos.
+
+<details>
+<summary><b>Configurar paso a paso</b></summary>
+<br>
 
 1. Copia `.env.example` como `.env` y completa `SUPABASE_DB_URL` con el connection string del
    *Session pooler* (Project Settings › Database › Connection string) y la contraseña de la base.
-2. Aplica la migración, con la [CLI de Supabase](https://supabase.com/docs/guides/cli):
+2. Aplica la migración con la [CLI de Supabase](https://supabase.com/docs/guides/cli):
 
    ```bash
    npx supabase link --project-ref <project-ref>
@@ -146,46 +328,74 @@ embeddings se siguen calculando en local; a Supabase solo llegan los vectores, e
 
 La tabla guarda una sola configuración. Si cambia el corpus o la fragmentación, se vuelve a ejecutar
 el paso 3; la consulta avisa si la tabla se cargó con otra configuración. Si cambia el modelo de
-embeddings (y con él la dimensión), hace falta una migración nueva. Supabase pausa los proyectos
-gratuitos tras una semana sin actividad: antes de una demo, revisa que el proyecto esté activo.
+embeddings (y con él la dimensión), hace falta una migración nueva.
 
-## Probar la recuperación
+</details>
 
-```bash
-cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de momentos críticos?" --etapa 7
-```
+Chroma y pgvector devuelven los mismos 20 candidatos, en el mismo orden, en las 47 preguntas;
+pgvector suma ~0,8 s por pregunta por la ida y vuelta a Supabase.
 
-`--sin-reranker` muestra el orden solo por similitud, para comparar. Con `ALMACEN=pgvector` (en el
-entorno o en `.env`) consulta el índice de Supabase.
+> [!WARNING]
+> `SUPABASE_DB_URL` da acceso completo a la base: va solo en `.env` y nunca en el frontend. Supabase
+> pausa los proyectos gratuitos tras una semana sin actividad: antes de una demo, revisa que el
+> proyecto esté activo.
 
-## Probar la generación
+---
 
-```bash
-cd backend && ../.venv/bin/python -m app.rag.generar "¿Qué es un mapa de momentos críticos?" --etapa 7
-```
+## 🧪 Evaluación
 
-`--json` muestra la respuesta con la forma del contrato de `/ia/consultar-guia` (`resultado`,
-`encontrada`, `confianza`, `fuentes`…). `--filtrar-etapa` busca solo en la actividad de esa etapa.
-En un Mac de 8 GB, con bge-m3, el reranker y gemma3:4b cargados a la vez, falta memoria y cada
-respuesta tardó entre 50 s y 4 min. Una pregunta rechazada por el umbral no llama al LLM.
-
-## Evaluar la recuperación
-
-```bash
-.venv/bin/python eval/comparar_embeddings.py
-```
-
-Compara modelos de embeddings con y sin reranker; necesita Ollama con `qwen3-embedding:0.6b` y
-`embeddinggemma`. Para recalibrar el umbral de rechazo (sin LLM, ~9 min en un Mac de 8 GB):
+| Script | Qué hace | Requisitos |
+| --- | --- | --- |
+| [`calibrar_umbral.py`](eval/calibrar_umbral.py) | Prueba umbrales de rechazo y cortes de confianza (sin LLM, ~9 min) | — |
+| [`comparar_embeddings.py`](eval/comparar_embeddings.py) | Compara bge-m3, qwen3-embedding y embeddinggemma, con y sin reranker | Ollama con `qwen3-embedding:0.6b` y `embeddinggemma` |
+| [`comparar_almacenes.py`](eval/comparar_almacenes.py) | Compara la recuperación en Chroma y en pgvector | Los dos índices y `SUPABASE_DB_URL` |
 
 ```bash
 .venv/bin/python eval/calibrar_umbral.py
 ```
 
-Métricas y últimos resultados en [eval/README.md](eval/README.md).
+Métricas, tablas y últimos resultados en [eval/README.md](eval/README.md).
 
-## Interfaz de demo
+---
+
+## 💻 Interfaz de demo
 
 ```bash
 npm install && npm run dev
 ```
+
+> [!NOTE]
+> La interfaz de chat (React 19 + Vite + TypeScript) usa datos de ejemplo de
+> [`src/data.ts`](src/data.ts): todavía no llama al backend.
+
+---
+
+## 🗂️ Estructura
+
+```text
+.
+├── backend/app/rag/        Consulta: config, modelos, indice, recuperar, prompts, generar
+├── ingesta/                PDF → JSON de Docling → corpus → índice vectorial
+├── data/
+│   ├── corpus/v1/          Corpus versionado, una página por línea (paginas.jsonl)
+│   └── fuentes/guia.yaml   Manifiesto y SHA-256 del PDF (el PDF no se versiona)
+├── eval/                   Preguntas, scripts de comparación y calibración, resultados
+├── supabase/migrations/    Tabla public.data_guia_fragmentos con pgvector
+└── src/                    Interfaz de chat de demo (React + Vite)
+```
+
+---
+
+## 📜 Licencia y créditos
+
+La guía **«¿Cómo podemos innovar en los servicios públicos desde la experiencia usuaria?»**, de la
+serie *Permitido Innovar: Guías para transformar el Estado chileno*, es del Laboratorio de Gobierno
+(Ministerio de Hacienda, Gobierno de Chile) y del Observatorio UX de la Universidad Tecnológica
+Metropolitana (2025). Se publica con licencia
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.es), que también aplica al
+corpus derivado en `data/corpus/`.
+
+<div align="center">
+<br>
+<sub>Hecho en Chile 🇨🇱 · Modelos locales · Tus preguntas no salen del equipo</sub>
+</div>
