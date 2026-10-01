@@ -11,13 +11,18 @@ desde la experiencia usuaria?», cita la sección y página de origen y funciona
 | `data/corpus/` | Corpus extraído y versionado ([README](data/corpus/README.md)) |
 | `data/fuentes/` | Manifiesto del PDF (el PDF no se versiona) |
 | `eval/` | Set de preguntas y comparaciones de recuperación ([README](eval/README.md)) |
+| `supabase/migrations/` | Esquema de la base en Supabase: tabla del índice con pgvector |
 
 ## Pipeline
 
 ```text
 PDF ──Docling standard, sin OCR──▶ JSON ──▶ paginas.jsonl ──SentenceSplitter 400/50──▶ fragmentos
                                                                                       │ bge-m3 (FlagEmbedding)
-pregunta ──bge-m3──▶ top 20 por coseno en Chroma ──bge-reranker-v2-m3──▶ top 4 ◀──────┘
+pregunta ──bge-m3──▶ top 20 por coseno en el índice ──bge-reranker-v2-m3──▶ top 4 ◀───┘
+                                                                               │ umbral
+                             «No encuentro esa información en la guía.» ◀──no──┤ ¿algún fragmento ≥ UMBRAL?
+                                                                               │ sí
+                             respuesta con citas y confianza ◀──gemma3:4b (Ollama)
 ```
 
 | Pieza | Elección | Configuración (`backend/app/rag/config.py`) |
@@ -26,8 +31,11 @@ pregunta ──bge-m3──▶ top 20 por coseno en Chroma ──bge-reranker-v2
 | Corpus | `v1`, una página por bloque, págs. 13–161 | `VERSION_CORPUS` |
 | Fragmentos | `SentenceSplitter` de LlamaIndex, 400 tokens, solapamiento 50 | `CHUNK_TOKENS`, `CHUNK_OVERLAP` |
 | Embeddings | `BAAI/bge-m3` con FlagEmbedding, densos, 1024 dimensiones | `EMBEDDINGS` |
-| Vector store | Chroma local, distancia coseno | `RUTA_CHROMA` |
+| Vector store | Chroma local o pgvector en Supabase, distancia coseno | `ALMACEN`, `RUTA_CHROMA`, `SUPABASE_DB_URL` |
 | Reranker | `BAAI/bge-reranker-v2-m3` con FlagEmbedding, puntaje 0–1 | `RERANKER`, `RERANKER_CANDIDATOS`, `TOP_K`, `USAR_RERANKER` |
+| Umbral | Puntaje del reranker ≥ 0,5; si ningún fragmento llega, se rechaza sin LLM | `UMBRAL` |
+| LLM | `gemma3:4b` en Ollama, temperature 0,1, contexto de 4096 tokens | `LLM`, `TEMPERATURE`, `CONTEXTO_TOKENS`, `MAX_TOKENS_RESPUESTA` |
+| Confianza | Mejor puntaje del reranker: alta ≥ 0,9, media ≥ 0,7, baja el resto | `CONFIANZA_ALTA`, `CONFIANZA_MEDIA` |
 | Hardware | `mps`, `cuda:0` o `cpu`; fp16 por defecto | `DISPOSITIVO`, `FP16` |
 
 ## Decisiones de diseño
@@ -43,6 +51,12 @@ pregunta ──bge-m3──▶ top 20 por coseno en Chroma ──bge-reranker-v2
   qwen3-embedding:0.6b y embeddinggemma sobre el set de evaluación, los tres empatan (recall@4 de
   95,7 %). El reranker sube la recuperación a 97,9 % y ordena mejor los fragmentos (MRR de 0,906 a
   0,952), a cambio de ~5 s por pregunta. Detalle en [eval/README.md](eval/README.md).
+- **Umbral antes del LLM y confianza desde el reranker.** Si ningún fragmento supera el umbral, la
+  guía no responde la pregunta y se contesta «No encuentro esa información en la guía.» sin llamar al
+  LLM: no hay contexto del que pueda inventar. El LLM todavía puede rechazar si los fragmentos no
+  responden; el prompt lo obliga a empezar con esa frase. La confianza (alta, media o baja) y las
+  fuentes salen del reranker y de los fragmentos, no del texto del LLM, así que no dependen de que un
+  modelo de 4B las escriba bien. Calibración en [eval/README.md](eval/README.md#umbral-de-rechazo).
 - **Todo corre en local.** Los modelos se descargan una vez desde Hugging Face y después funcionan sin
   red; ni la guía ni las preguntas salen del equipo.
 - **El corpus se versiona y el PDF no.** El índice se reconstruye desde el corpus con un comando; el
@@ -60,6 +74,12 @@ python3.12 -m venv .venv
 
 La consulta sola (sin Docling) necesita únicamente `backend/requirements.txt`. La primera ejecución
 descarga los modelos desde Hugging Face (bge-m3 ~2,3 GB, reranker ~2,3 GB); después corren sin red.
+
+La generación necesita [Ollama](https://ollama.com/download) corriendo con el LLM (~3,3 GB):
+
+```bash
+ollama pull gemma3:4b
+```
 
 ## Reconstruir el índice
 
@@ -82,13 +102,72 @@ Para regenerar el corpus desde el PDF (por ejemplo, si cambia la guía o la vers
 `ingesta.extraer` compara el hash del PDF con `data/fuentes/guia.yaml`. `ingesta.corpus --ver 148`
 muestra cómo quedó una página.
 
+## Índice en Supabase (pgvector)
+
+Con `ALMACEN=pgvector` el índice vive en Supabase, en la tabla `public.data_guia_fragmentos`
+(`vector(1024)`, índice HNSW por coseno y RLS sin políticas, así que la API pública no la lee). Los
+embeddings se siguen calculando en local; a Supabase solo llegan los vectores, el texto y los metadatos.
+
+1. Copia `.env.example` como `.env` y completa `SUPABASE_DB_URL` con el connection string del
+   *Session pooler* (Project Settings › Database › Connection string) y la contraseña de la base.
+2. Aplica la migración, con la [CLI de Supabase](https://supabase.com/docs/guides/cli):
+
+   ```bash
+   npx supabase link --project-ref <project-ref>
+   ```
+
+   ```bash
+   npx supabase db push
+   ```
+
+   o directamente con `psql`:
+
+   ```bash
+   psql "$SUPABASE_DB_URL" -f supabase/migrations/20261001120000_indice_guia.sql
+   ```
+
+3. Carga el índice. Si ya está en Chroma, copia esos mismos vectores sin cargar el modelo:
+
+   ```bash
+   ALMACEN=pgvector .venv/bin/python -m ingesta.indexar --desde-chroma
+   ```
+
+   o vectoriza el corpus desde cero:
+
+   ```bash
+   ALMACEN=pgvector .venv/bin/python -m ingesta.indexar
+   ```
+
+4. Compara la recuperación con Chroma (deja el resultado en `eval/resultados/`):
+
+   ```bash
+   .venv/bin/python eval/comparar_almacenes.py
+   ```
+
+La tabla guarda una sola configuración. Si cambia el corpus o la fragmentación, se vuelve a ejecutar
+el paso 3; la consulta avisa si la tabla se cargó con otra configuración. Si cambia el modelo de
+embeddings (y con él la dimensión), hace falta una migración nueva. Supabase pausa los proyectos
+gratuitos tras una semana sin actividad: antes de una demo, revisa que el proyecto esté activo.
+
 ## Probar la recuperación
 
 ```bash
 cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de momentos críticos?" --etapa 7
 ```
 
-`--sin-reranker` muestra el orden solo por similitud, para comparar.
+`--sin-reranker` muestra el orden solo por similitud, para comparar. Con `ALMACEN=pgvector` (en el
+entorno o en `.env`) consulta el índice de Supabase.
+
+## Probar la generación
+
+```bash
+cd backend && ../.venv/bin/python -m app.rag.generar "¿Qué es un mapa de momentos críticos?" --etapa 7
+```
+
+`--json` muestra la respuesta con la forma del contrato de `/ia/consultar-guia` (`resultado`,
+`encontrada`, `confianza`, `fuentes`…). `--filtrar-etapa` busca solo en la actividad de esa etapa.
+En un Mac de 8 GB, con bge-m3, el reranker y gemma3:4b cargados a la vez, falta memoria y cada
+respuesta tardó entre 50 s y 4 min. Una pregunta rechazada por el umbral no llama al LLM.
 
 ## Evaluar la recuperación
 
@@ -97,7 +176,13 @@ cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de mom
 ```
 
 Compara modelos de embeddings con y sin reranker; necesita Ollama con `qwen3-embedding:0.6b` y
-`embeddinggemma`. Métricas y últimos resultados en [eval/README.md](eval/README.md).
+`embeddinggemma`. Para recalibrar el umbral de rechazo (sin LLM, ~9 min en un Mac de 8 GB):
+
+```bash
+.venv/bin/python eval/calibrar_umbral.py
+```
+
+Métricas y últimos resultados en [eval/README.md](eval/README.md).
 
 ## Interfaz de demo
 

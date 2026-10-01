@@ -13,8 +13,14 @@ ReordenadorBGE
     el fragmento juntos (cross-encoder): es más preciso, pero más lento, por eso
     solo se aplica a unos pocos candidatos. Es un `BaseNodePostprocessor`.
 
-Cargar cada modelo tarda varios segundos y ocupa ~1,2 GB en fp16. Usar
-`embedding()` y `reordenador()`, que crean una sola instancia por proceso.
+llm()
+    El LLM que redacta la respuesta (gemma3:4b por defecto). No corre en este
+    proceso: es un cliente de Ollama, que tiene que estar corriendo con el
+    modelo descargado (`ollama pull gemma3:4b`).
+
+Cargar cada modelo de FlagEmbedding tarda varios segundos y ocupa ~1,2 GB en
+fp16. Usar `embedding()`, `reordenador()` y `llm()`, que crean una sola
+instancia por proceso.
 """
 from __future__ import annotations
 
@@ -26,6 +32,7 @@ from llama_index.core.bridge.pydantic import Field, PrivateAttr
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.postprocessor.types import BaseNodePostprocessor
 from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
+from llama_index.llms.ollama import Ollama
 
 from app.rag import config
 
@@ -128,3 +135,13 @@ def embedding() -> EmbeddingBGEM3:
 def reordenador() -> ReordenadorBGE:
     """Instancia compartida del reranker (se carga la primera vez que se pide)."""
     return ReordenadorBGE()
+
+
+@lru_cache(maxsize=1)
+def llm() -> Ollama:
+    """Cliente compartido del LLM en Ollama, con la temperatura y los límites de config."""
+    return Ollama(model=config.LLM, base_url=config.OLLAMA_URL,
+                  temperature=config.TEMPERATURE,
+                  context_window=config.CONTEXTO_TOKENS,  # se envía como num_ctx
+                  request_timeout=config.TIMEOUT_S,
+                  additional_kwargs={"num_predict": config.MAX_TOKENS_RESPUESTA})

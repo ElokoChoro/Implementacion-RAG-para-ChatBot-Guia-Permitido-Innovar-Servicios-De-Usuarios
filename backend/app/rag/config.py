@@ -21,16 +21,35 @@ CHUNK_OVERLAP          Tokens que comparten dos fragmentos seguidos.
 RERANKER_CANDIDATOS    Fragmentos que se recuperan por similitud antes del reranker.
 TOP_K                  Fragmentos que se entregan al final.
 USAR_RERANKER          Si es false, se entregan los TOP_K más similares sin reordenar.
+ALMACEN                Vector store: «chroma» (local, por defecto) o «pgvector» (Supabase).
 RUTA_CHROMA            Carpeta donde Chroma guarda el índice.
+SUPABASE_DB_URL        Connection string de Postgres de Supabase (solo con ALMACEN=pgvector).
+TABLA_PGVECTOR         Tabla del índice en pgvector, sin el prefijo «data_» de PGVectorStore.
+OLLAMA_URL             Dirección del servidor de Ollama.
+LLM                    Modelo de Ollama que redacta la respuesta («gemma3:4b»).
+TEMPERATURE            Aleatoriedad del LLM; baja para que se apegue a la guía.
+CONTEXTO_TOKENS        Ventana de contexto del LLM (num_ctx de Ollama).
+MAX_TOKENS_RESPUESTA   Largo máximo de la respuesta, en tokens (num_predict de Ollama).
+TIMEOUT_S              Segundos de espera a Ollama antes de dar error.
+UMBRAL                 Puntaje mínimo del reranker (0 a 1) para que un fragmento llegue al LLM.
+CONFIANZA_MEDIA        Mejor puntaje desde el que la confianza es «media».
+CONFIANZA_ALTA         Mejor puntaje desde el que la confianza es «alta».
 
 Si cambian EMBEDDINGS, CHUNK_TOKENS, CHUNK_OVERLAP o VERSION_CORPUS, hay que
-volver a indexar (python -m ingesta.indexar). Cada combinación usa su propia
-colección (ver `coleccion()`), así que los índices anteriores no se pisan.
+volver a indexar (python -m ingesta.indexar). En Chroma cada combinación usa su
+propia colección (ver `coleccion()`), así que los índices anteriores no se pisan.
+En pgvector hay una sola tabla, que se recarga completa al indexar.
+
+Las variables también se leen del archivo .env de la raíz del repositorio (ver
+.env.example); las que ya están definidas en el entorno tienen prioridad.
 """
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 RAIZ = Path(__file__).resolve().parents[3]  # raíz del repositorio
+load_dotenv(RAIZ / ".env")
 
 
 def _env(nombre: str, defecto, tipo=str):
@@ -77,8 +96,41 @@ TOP_K = _env("TOP_K", 4, int)
 USAR_RERANKER = _env("USAR_RERANKER", True, bool)
 
 # ---- Vector store -------------------------------------------------------------
+# «chroma»: índice local en disco. «pgvector»: índice en Supabase, compartido por el
+# equipo; la tabla se crea con supabase/migrations/ y se carga con ingesta.indexar.
+ALMACEN = _env("ALMACEN", "chroma")
 # Chroma guarda el índice en disco, dentro del repositorio (carpeta ignorada por git).
 RUTA_CHROMA = Path(_env("RUTA_CHROMA", str(RAIZ / "storage" / "chroma")))
+# Connection string de Supabase (Project Settings › Database › Connection string,
+# «Session pooler», que funciona con IPv4), con la contraseña de la base:
+#   postgresql://postgres.<ref>:<contraseña>@aws-0-<región>.pooler.supabase.com:5432/postgres
+# Da acceso completo a la base: va solo en .env, nunca en el frontend.
+SUPABASE_DB_URL = _env("SUPABASE_DB_URL", "")
+# PGVectorStore le antepone «data_»: la tabla real es public.data_guia_fragmentos.
+TABLA_PGVECTOR = _env("TABLA_PGVECTOR", "guia_fragmentos")
+
+# ---- LLM local (Ollama) ---------------------------------------------------------
+# gemma3:4b ocupa ~3,3 GB. Con un contexto de 8192 tokens, en un Mac de 8 GB con
+# bge-m3 y el reranker cargados, Ollama se cae; 4096 alcanza para la pregunta,
+# TOP_K fragmentos de 400 tokens y la respuesta.
+OLLAMA_URL = _env("OLLAMA_URL", "http://localhost:11434")
+LLM = _env("LLM", "gemma3:4b")
+TEMPERATURE = _env("TEMPERATURE", 0.1, float)
+CONTEXTO_TOKENS = _env("CONTEXTO_TOKENS", 4096, int)
+MAX_TOKENS_RESPUESTA = _env("MAX_TOKENS_RESPUESTA", 768, int)
+TIMEOUT_S = _env("TIMEOUT_S", 180, float)
+
+# ---- Umbral y confianza ---------------------------------------------------------
+# Sobre el puntaje del reranker (0 a 1). Los fragmentos bajo UMBRAL no llegan al
+# LLM y, si no queda ninguno, se responde «No encuentro…» sin llamarlo. La
+# confianza se calcula con el mejor puntaje. Calibrados con
+# eval/calibrar_umbral.py: si cambia RERANKER, hay que volver a calibrar.
+# En el set v1, las preguntas de fuera de la guía llegan como máximo a 0,40 y
+# las respondibles parten en 0,83: 0,5 las separa con margen hacia el lado
+# seguro (es peor callar una respondible que dejar pasar una de fuera al LLM).
+UMBRAL = _env("UMBRAL", 0.5, float)
+CONFIANZA_MEDIA = _env("CONFIANZA_MEDIA", 0.7, float)
+CONFIANZA_ALTA = _env("CONFIANZA_ALTA", 0.9, float)
 
 
 def coleccion() -> str:

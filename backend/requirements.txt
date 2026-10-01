@@ -2,5 +2,11 @@
 llama-index-core>=0.14.25,<0.15
 llama-index-vector-stores-chroma>=0.6,<0.7
 chromadb>=1.5,<2
+# Índice en Supabase (ALMACEN=pgvector); trae psycopg2, asyncpg y pgvector
+llama-index-vector-stores-postgres>=0.9,<0.10
+# Lee la configuración del .env de la raíz
+python-dotenv>=1.2,<2
 # Embeddings (BAAI/bge-m3) y reranker (BAAI/bge-reranker-v2-m3), locales
 FlagEmbedding>=1.4.2,<1.5
+# LLM local: cliente de Ollama (el modelo, gemma3:4b, se descarga con `ollama pull`)
+llama-index-llms-ollama>=0.11,<0.12
