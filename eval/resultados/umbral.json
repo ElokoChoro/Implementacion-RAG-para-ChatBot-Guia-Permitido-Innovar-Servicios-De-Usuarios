@@ -1,5 +1,5 @@
 {
- "coleccion": "guia_v1_bge-m3_c400o50",
+ "coleccion": "guia_v2_bge-m3_c400o50",
  "reranker": "BAAI/bge-reranker-v2-m3",
  "top_k": 4,
  "candidatos": 20,
@@ -7,106 +7,105 @@
   0.4,
   0.5,
   0.6,
-  0.7,
-  0.8
+  0.7
  ],
  "barrido": [
   {
    "umbral": 0.0,
    "rechazo_fuera": 0.0,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 0
   },
   {
    "umbral": 0.01,
    "rechazo_fuera": 44.4,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 0
   },
   {
    "umbral": 0.02,
    "rechazo_fuera": 44.4,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 0
   },
   {
    "umbral": 0.05,
    "rechazo_fuera": 55.6,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 0
   },
   {
    "umbral": 0.1,
    "rechazo_fuera": 77.8,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 0
   },
   {
    "umbral": 0.15,
-   "rechazo_fuera": 88.9,
+   "rechazo_fuera": 77.8,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 0
   },
   {
    "umbral": 0.2,
-   "rechazo_fuera": 88.9,
+   "rechazo_fuera": 77.8,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 1
   },
   {
    "umbral": 0.3,
-   "rechazo_fuera": 88.9,
+   "rechazo_fuera": 77.8,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 2
   },
   {
    "umbral": 0.4,
    "rechazo_fuera": 100.0,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 2
   },
   {
    "umbral": 0.5,
    "rechazo_fuera": 100.0,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 3
   },
   {
    "umbral": 0.6,
    "rechazo_fuera": 100.0,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 3
   },
   {
    "umbral": 0.7,
    "rechazo_fuera": 100.0,
    "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "recall": 98.0,
    "ambiguas_rechazadas": 3
   },
   {
    "umbral": 0.8,
    "rechazo_fuera": 100.0,
-   "falsos_no_encuentro": 0.0,
-   "recall": 97.8,
+   "falsos_no_encuentro": 3.9,
+   "recall": 94.1,
    "ambiguas_rechazadas": 3
   },
   {
    "umbral": 0.9,
    "rechazo_fuera": 100.0,
-   "falsos_no_encuentro": 6.5,
-   "recall": 89.1,
+   "falsos_no_encuentro": 11.8,
+   "recall": 84.3,
    "ambiguas_rechazadas": 3
   }
  ],
@@ -123,14 +122,14 @@
    "hasta": 0.3,
    "respondibles": 0,
    "seccion_primera": 0.0,
-   "fuera": 1
+   "fuera": 0
   },
   {
    "desde": 0.3,
    "hasta": 0.5,
    "respondibles": 0,
    "seccion_primera": 0.0,
-   "fuera": 1
+   "fuera": 2
   },
   {
    "desde": 0.5,
@@ -142,15 +141,15 @@
   {
    "desde": 0.7,
    "hasta": 0.9,
-   "respondibles": 3,
+   "respondibles": 6,
    "seccion_primera": 100.0,
    "fuera": 0
   },
   {
    "desde": 0.9,
    "hasta": 1.0,
-   "respondibles": 43,
-   "seccion_primera": 93.0,
+   "respondibles": 45,
+   "seccion_primera": 93.3,
    "fuera": 0
   }
  ],
@@ -181,13 +180,13 @@
     0.9659,
     0.3898,
     0.3123,
-    0.1199
+    0.2173
    ],
    "fuentes": [
     "Investigación, p. 108",
     "Personas, p. 141",
     "Actividades y herramientas, p. 52",
-    "Investigación, p. 108"
+    "¿Cómo elaboramos esta guía?, p. 162"
    ],
    "pos_seccion": 1
   },
@@ -484,16 +483,16 @@
    "categoria": "fuera",
    "pregunta": "¿Qué dice la guía sobre el uso de inteligencia artificial en los servicios públicos?",
    "puntajes": [
+    0.3452,
+    0.2129,
     0.1091,
-    0.0472,
-    0.0278,
-    0.0201
+    0.0849
    ],
    "fuentes": [
+    "Prólogos, p. 9",
+    "Créditos de la guía, p. 2",
     "Introducción, p. 15",
-    "Introducción, p. 14",
-    "Actividades y herramientas, p. 52",
-    "Introducción, p. 16"
+    "Prólogos, p. 8"
    ],
    "pos_seccion": null
   },
@@ -509,8 +508,8 @@
    ],
    "fuentes": [
     "Introducción, p. 15",
+    "¿Cómo elaboramos esta guía?, p. 162",
     "Habilitación y Expectativas, p. 101",
-    "Introducción, p. 19",
     "Medición › Plan de evaluación de estándares de servicio, p. 118"
    ],
    "pos_seccion": null
@@ -520,16 +519,16 @@
    "categoria": "fuera",
    "pregunta": "¿Qué exige la Ley 21.180 de Transformación Digital del Estado?",
    "puntajes": [
+    0.0054,
     0.0028,
     0.0011,
-    0.0011,
-    0.0009
+    0.001
    ],
    "fuentes": [
+    "Prólogos, p. 8",
     "Comunicación, p. 72",
-    "Habilitación y Expectativas, p. 101",
     "Estándares, p. 91",
-    "Glosario, p. 161"
+    "¿Cómo elaboramos esta guía?, p. 163"
    ],
    "pos_seccion": null
   },
@@ -538,16 +537,16 @@
    "categoria": "fuera",
    "pregunta": "¿Cuál es el sueldo promedio de un diseñador de servicios en Chile?",
    "puntajes": [
+    0.0049,
     0.0018,
     0.0008,
-    0.0006,
-    0.0005
+    0.0006
    ],
    "fuentes": [
+    "Créditos de la guía, p. 2",
     "Introducción, p. 22",
     "Propósito 5: Diseñar e implementar un nuevo servicio, p. 45",
-    "Modelo operativo › Plano del servicio, p. 122",
-    "Interacciones, p. 105"
+    "Modelo operativo › Plano del servicio, p. 122"
    ],
    "pos_seccion": null
   },
@@ -563,9 +562,9 @@
    ],
    "fuentes": [
     "Sensibilización › Ficha de actividades de sensibilización, p. 152",
-    "Comunicación › Plan de comunicaciones del servicio, p. 74",
     "Modelo operativo › Plano del servicio, p. 124",
-    "Competencias › Ficha de competencias para la experiencia, p. 70"
+    "Adopción, p. 59",
+    "Glosario, p. 161"
    ],
    "pos_seccion": null
   },
@@ -594,14 +593,14 @@
    "puntajes": [
     0.4432,
     0.0215,
-    0.0092,
-    0.0057
+    0.016,
+    0.0092
    ],
    "fuentes": [
     "Investigación, p. 108",
     "Investigación › Plan de investigación de experiencia usuaria, p. 110",
-    "Investigación, p. 109",
-    "Introducción, p. 15"
+    "¿Cómo elaboramos esta guía?, p. 162",
+    "Investigación, p. 109"
    ],
    "pos_seccion": 1
   },
@@ -1081,13 +1080,13 @@
     0.9899,
     0.5183,
     0.4944,
-    0.2053
+    0.4933
    ],
    "fuentes": [
     "Propósito 5: Diseñar e implementar un nuevo servicio, p. 45",
     "Propósito 5: Diseñar e implementar un nuevo servicio, p. 44",
     "Introducción, p. 16",
-    "Propósito 5: Diseñar e implementar un nuevo servicio, p. 45"
+    "Prólogos, p. 9"
    ],
    "pos_seccion": 1
   },
@@ -1198,6 +1197,96 @@
     "Ecosistema de canales › Ficha de caracterización de canales, p. 88"
    ],
    "pos_seccion": null
+  },
+  {
+   "id": "P-059",
+   "categoria": "respondible",
+   "pregunta": "¿Quién es el autor de la guía?",
+   "puntajes": [
+    0.993,
+    0.507,
+    0.2256,
+    0.1797
+   ],
+   "fuentes": [
+    "Créditos de la guía, p. 2",
+    "Introducción, p. 15",
+    "Prólogos, p. 8",
+    "Prólogos, p. 9"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-060",
+   "categoria": "respondible",
+   "pregunta": "¿Por quién fue realizada la guía?",
+   "puntajes": [
+    0.7185,
+    0.621,
+    0.4151,
+    0.3618
+   ],
+   "fuentes": [
+    "Créditos de la guía, p. 2",
+    "¿Cómo elaboramos esta guía?, p. 162",
+    "Introducción, p. 15",
+    "¿Cómo elaboramos esta guía?, p. 163"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-061",
+   "categoria": "respondible",
+   "pregunta": "¿Quién coordinó la guía y quién escribió sus textos?",
+   "puntajes": [
+    0.8854,
+    0.0462,
+    0.0398,
+    0.0181
+   ],
+   "fuentes": [
+    "Créditos de la guía, p. 2",
+    "¿Cómo elaboramos esta guía?, p. 162",
+    "Prólogos, p. 8",
+    "Prólogos, p. 9"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-062",
+   "categoria": "respondible",
+   "pregunta": "¿Bajo qué licencia se publica la guía?",
+   "puntajes": [
+    0.7851,
+    0.0293,
+    0.0076,
+    0.0043
+   ],
+   "fuentes": [
+    "Créditos de la guía, p. 2",
+    "Prólogos, p. 8",
+    "Innovación pública y democracia, p. 11",
+    "Introducción, p. 15"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-063",
+   "categoria": "respondible",
+   "pregunta": "¿Cómo se elaboró la guía?",
+   "puntajes": [
+    0.9802,
+    0.9759,
+    0.9727,
+    0.5048
+   ],
+   "fuentes": [
+    "¿Cómo elaboramos esta guía?, p. 162",
+    "¿Cómo elaboramos esta guía?, p. 162",
+    "¿Cómo elaboramos esta guía?, p. 163",
+    "Créditos de la guía, p. 2"
+   ],
+   "pos_seccion": 1
   }
  ]
 }

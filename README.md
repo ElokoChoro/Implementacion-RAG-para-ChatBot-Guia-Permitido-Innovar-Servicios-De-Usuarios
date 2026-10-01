@@ -29,7 +29,7 @@ pregunta ──bge-m3──▶ top 20 por coseno en el índice ──bge-reranke
 | Pieza | Elección | Configuración (`backend/app/rag/config.py`) |
 | --- | --- | --- |
 | Extracción | Docling 2.131, pipeline `standard`, sin OCR | — |
-| Corpus | `v1`, una página por bloque, págs. 13–161 | `VERSION_CORPUS` |
+| Corpus | `v2`, una página por bloque: créditos (p. 2), prólogos (8–11) y págs. 13–163 | `VERSION_CORPUS` |
 | Fragmentos | `SentenceSplitter` de LlamaIndex, 400 tokens, solapamiento 50 | `CHUNK_TOKENS`, `CHUNK_OVERLAP` |
 | Embeddings | `BAAI/bge-m3` con FlagEmbedding, densos, 1024 dimensiones | `EMBEDDINGS` |
 | Vector store | Chroma local o pgvector en Supabase, distancia coseno | `ALMACEN`, `RUTA_CHROMA`, `SUPABASE_DB_URL` |
@@ -48,6 +48,10 @@ pregunta ──bge-m3──▶ top 20 por coseno en el índice ──bge-reranke
   las láminas y fichas se incluye como párrafo `[Figura] …`.
 - **Una página por registro en el corpus.** Cada página lleva sección, actividad, herramienta y etapa,
   para citar «sección, p. N» y filtrar por etapa.
+- **Créditos, prólogos y elaboración en el índice.** El corpus `v1` empezaba en la Introducción, así
+  que el asistente no podía decir quién hizo la guía, cuándo ni con qué licencia. Desde `v2` también
+  entran los créditos (p. 2), los prólogos (8–11) y «¿Cómo elaboramos esta guía?» (162–163). Quedan
+  fuera la portada, los índices, las referencias y la contraportada.
 - **bge-m3 + reranker.** bge-m3 es multilingüe, corre local y tiene licencia MIT. Comparado con
   qwen3-embedding:0.6b y embeddinggemma sobre el set de evaluación, los tres empatan (recall@4 de
   95,7 %). El reranker sube la recuperación a 97,9 % y ordena mejor los fragmentos (MRR de 0,906 a
@@ -84,7 +88,7 @@ ollama pull gemma3:4b
 
 ## Reconstruir el índice
 
-El corpus `v1` ya está en el repositorio, así que basta con indexar:
+El corpus `v2` ya está en el repositorio, así que basta con indexar:
 
 ```bash
 .venv/bin/python -m ingesta.indexar
