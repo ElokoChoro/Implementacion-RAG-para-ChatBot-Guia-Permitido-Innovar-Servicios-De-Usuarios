@@ -22,6 +22,15 @@ RERANKER_CANDIDATOS    Fragmentos que se recuperan por similitud antes del reran
 TOP_K                  Fragmentos que se entregan al final.
 USAR_RERANKER          Si es false, se entregan los TOP_K más similares sin reordenar.
 RUTA_CHROMA            Carpeta donde Chroma guarda el índice.
+OLLAMA_URL             Dirección del servidor de Ollama.
+LLM                    Modelo de Ollama que redacta la respuesta («gemma3:4b»).
+TEMPERATURE            Aleatoriedad del LLM; baja para que se apegue a la guía.
+CONTEXTO_TOKENS        Ventana de contexto del LLM (num_ctx de Ollama).
+MAX_TOKENS_RESPUESTA   Largo máximo de la respuesta, en tokens (num_predict de Ollama).
+TIMEOUT_S              Segundos de espera a Ollama antes de dar error.
+UMBRAL                 Puntaje mínimo del reranker (0 a 1) para que un fragmento llegue al LLM.
+CONFIANZA_MEDIA        Mejor puntaje desde el que la confianza es «media».
+CONFIANZA_ALTA         Mejor puntaje desde el que la confianza es «alta».
 
 Si cambian EMBEDDINGS, CHUNK_TOKENS, CHUNK_OVERLAP o VERSION_CORPUS, hay que
 volver a indexar (python -m ingesta.indexar). Cada combinación usa su propia
@@ -79,6 +88,29 @@ USAR_RERANKER = _env("USAR_RERANKER", True, bool)
 # ---- Vector store -------------------------------------------------------------
 # Chroma guarda el índice en disco, dentro del repositorio (carpeta ignorada por git).
 RUTA_CHROMA = Path(_env("RUTA_CHROMA", str(RAIZ / "storage" / "chroma")))
+
+# ---- LLM local (Ollama) ---------------------------------------------------------
+# gemma3:4b ocupa ~3,3 GB. Con un contexto de 8192 tokens, en un Mac de 8 GB con
+# bge-m3 y el reranker cargados, Ollama se cae; 4096 alcanza para la pregunta,
+# TOP_K fragmentos de 400 tokens y la respuesta.
+OLLAMA_URL = _env("OLLAMA_URL", "http://localhost:11434")
+LLM = _env("LLM", "gemma3:4b")
+TEMPERATURE = _env("TEMPERATURE", 0.1, float)
+CONTEXTO_TOKENS = _env("CONTEXTO_TOKENS", 4096, int)
+MAX_TOKENS_RESPUESTA = _env("MAX_TOKENS_RESPUESTA", 768, int)
+TIMEOUT_S = _env("TIMEOUT_S", 180, float)
+
+# ---- Umbral y confianza ---------------------------------------------------------
+# Sobre el puntaje del reranker (0 a 1). Los fragmentos bajo UMBRAL no llegan al
+# LLM y, si no queda ninguno, se responde «No encuentro…» sin llamarlo. La
+# confianza se calcula con el mejor puntaje. Calibrados con
+# eval/calibrar_umbral.py: si cambia RERANKER, hay que volver a calibrar.
+# En el set v1, las preguntas de fuera de la guía llegan como máximo a 0,40 y
+# las respondibles parten en 0,83: 0,5 las separa con margen hacia el lado
+# seguro (es peor callar una respondible que dejar pasar una de fuera al LLM).
+UMBRAL = _env("UMBRAL", 0.5, float)
+CONFIANZA_MEDIA = _env("CONFIANZA_MEDIA", 0.7, float)
+CONFIANZA_ALTA = _env("CONFIANZA_ALTA", 0.9, float)
 
 
 def coleccion() -> str:

@@ -1,0 +1,1203 @@
+{
+ "coleccion": "guia_v1_bge-m3_c400o50",
+ "reranker": "BAAI/bge-reranker-v2-m3",
+ "top_k": 4,
+ "candidatos": 20,
+ "umbrales_sin_errores": [
+  0.4,
+  0.5,
+  0.6,
+  0.7,
+  0.8
+ ],
+ "barrido": [
+  {
+   "umbral": 0.0,
+   "rechazo_fuera": 0.0,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 0
+  },
+  {
+   "umbral": 0.01,
+   "rechazo_fuera": 44.4,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 0
+  },
+  {
+   "umbral": 0.02,
+   "rechazo_fuera": 44.4,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 0
+  },
+  {
+   "umbral": 0.05,
+   "rechazo_fuera": 55.6,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 0
+  },
+  {
+   "umbral": 0.1,
+   "rechazo_fuera": 77.8,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 0
+  },
+  {
+   "umbral": 0.15,
+   "rechazo_fuera": 88.9,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 0
+  },
+  {
+   "umbral": 0.2,
+   "rechazo_fuera": 88.9,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 1
+  },
+  {
+   "umbral": 0.3,
+   "rechazo_fuera": 88.9,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 2
+  },
+  {
+   "umbral": 0.4,
+   "rechazo_fuera": 100.0,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 2
+  },
+  {
+   "umbral": 0.5,
+   "rechazo_fuera": 100.0,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 3
+  },
+  {
+   "umbral": 0.6,
+   "rechazo_fuera": 100.0,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 3
+  },
+  {
+   "umbral": 0.7,
+   "rechazo_fuera": 100.0,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 3
+  },
+  {
+   "umbral": 0.8,
+   "rechazo_fuera": 100.0,
+   "falsos_no_encuentro": 0.0,
+   "recall": 97.8,
+   "ambiguas_rechazadas": 3
+  },
+  {
+   "umbral": 0.9,
+   "rechazo_fuera": 100.0,
+   "falsos_no_encuentro": 6.5,
+   "recall": 89.1,
+   "ambiguas_rechazadas": 3
+  }
+ ],
+ "franjas": [
+  {
+   "desde": 0.0,
+   "hasta": 0.1,
+   "respondibles": 0,
+   "seccion_primera": 0.0,
+   "fuera": 7
+  },
+  {
+   "desde": 0.1,
+   "hasta": 0.3,
+   "respondibles": 0,
+   "seccion_primera": 0.0,
+   "fuera": 1
+  },
+  {
+   "desde": 0.3,
+   "hasta": 0.5,
+   "respondibles": 0,
+   "seccion_primera": 0.0,
+   "fuera": 1
+  },
+  {
+   "desde": 0.5,
+   "hasta": 0.7,
+   "respondibles": 0,
+   "seccion_primera": 0.0,
+   "fuera": 0
+  },
+  {
+   "desde": 0.7,
+   "hasta": 0.9,
+   "respondibles": 3,
+   "seccion_primera": 100.0,
+   "fuera": 0
+  },
+  {
+   "desde": 0.9,
+   "hasta": 1.0,
+   "respondibles": 43,
+   "seccion_primera": 93.0,
+   "fuera": 0
+  }
+ ],
+ "preguntas": [
+  {
+   "id": "P-001",
+   "categoria": "respondible",
+   "pregunta": "¿En qué consiste la actividad de Investigación?",
+   "puntajes": [
+    0.9984,
+    0.9637,
+    0.3822,
+    0.2695
+   ],
+   "fuentes": [
+    "Investigación, p. 108",
+    "Necesidades, p. 132",
+    "Personas, p. 141",
+    "Investigación, p. 109"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-002",
+   "categoria": "respondible",
+   "pregunta": "¿Qué pasos recomienda la guía para desarrollar la actividad de Investigación?",
+   "puntajes": [
+    0.9659,
+    0.3898,
+    0.3123,
+    0.1199
+   ],
+   "fuentes": [
+    "Investigación, p. 108",
+    "Personas, p. 141",
+    "Actividades y herramientas, p. 52",
+    "Investigación, p. 108"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-003",
+   "categoria": "respondible",
+   "pregunta": "¿En qué momento de un proyecto conviene hacer la investigación de experiencia?",
+   "puntajes": [
+    0.9821,
+    0.8774,
+    0.279,
+    0.2235
+   ],
+   "fuentes": [
+    "Investigación, p. 109",
+    "Investigación, p. 108",
+    "Investigación › Plan de investigación de experiencia usuaria, p. 110",
+    "Personas, p. 141"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-004",
+   "categoria": "respondible",
+   "pregunta": "¿Qué herramienta propone la guía para planificar una investigación con personas usuarias?",
+   "puntajes": [
+    0.9953,
+    0.9284,
+    0.8876,
+    0.6708
+   ],
+   "fuentes": [
+    "Investigación › Plan de investigación de experiencia usuaria, p. 110",
+    "Investigación, p. 109",
+    "Investigación, p. 109",
+    "Investigación › Plan de investigación de experiencia usuaria, p. 110"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-005",
+   "categoria": "respondible",
+   "pregunta": "¿Para qué sirve el Mapa de perfiles de personas usuarias?",
+   "puntajes": [
+    0.9997,
+    0.9992,
+    0.9977,
+    0.9943
+   ],
+   "fuentes": [
+    "Personas › Mapa de perfiles de personas usuarias, p. 142",
+    "Personas › Perfil de persona usuaria, p. 148",
+    "Habilitación y Expectativas › Mapa de expectativas, p. 102",
+    "Personas, p. 141"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-006",
+   "categoria": "respondible",
+   "pregunta": "¿Cómo funciona la matriz de posición para segmentar perfiles de personas usuarias?",
+   "puntajes": [
+    0.9923,
+    0.9496,
+    0.8957,
+    0.8123
+   ],
+   "fuentes": [
+    "Personas › Mapa de perfiles de personas usuarias, p. 142",
+    "Personas › Mapa de perfiles de personas usuarias, p. 143",
+    "Personas › Mapa de perfiles de personas usuarias, p. 142",
+    "Personas › Mapa de perfiles de personas usuarias, p. 144"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-007",
+   "categoria": "respondible",
+   "pregunta": "¿De dónde se originan las expectativas de las personas usuarias?",
+   "puntajes": [
+    0.9971,
+    0.8678,
+    0.8021,
+    0.6803
+   ],
+   "fuentes": [
+    "Habilitación y Expectativas, p. 100",
+    "Introducción, p. 21",
+    "Habilitación y Expectativas › Mapa de expectativas, p. 102",
+    "Habilitación y Expectativas, p. 100"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-008",
+   "categoria": "respondible",
+   "pregunta": "¿Qué significa habilitación en el contexto de la encuesta MESU?",
+   "puntajes": [
+    0.9919,
+    0.5702,
+    0.0357,
+    0.0282
+   ],
+   "fuentes": [
+    "Habilitación y Expectativas, p. 100",
+    "Habilitación y Expectativas › Mapa de expectativas, p. 102",
+    "Propósito 3: Mejorar la satisfacción con un servicio, p. 38",
+    "Habilitación y Expectativas, p. 100"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-009",
+   "categoria": "respondible",
+   "pregunta": "¿Qué preguntas propone la guía para trabajar las necesidades de las personas usuarias?",
+   "puntajes": [
+    0.9511,
+    0.8952,
+    0.8225,
+    0.7428
+   ],
+   "fuentes": [
+    "Introducción, p. 19",
+    "Introducción, p. 16",
+    "Introducción, p. 15",
+    "Personas › Perfil de persona usuaria, p. 148"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-010",
+   "categoria": "respondible",
+   "pregunta": "¿Cuál es el objetivo de la actividad de Vinculación?",
+   "puntajes": [
+    0.9996,
+    0.9629,
+    0.7555,
+    0.7493
+   ],
+   "fuentes": [
+    "Vinculación, p. 154",
+    "Vinculación, p. 155",
+    "Propósito 3: Mejorar la satisfacción con un servicio, p. 38",
+    "Propósito 4: Mejorar la colaboración interna para la experiencia usuaria, p. 42"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-011",
+   "categoria": "respondible",
+   "pregunta": "¿Qué busca la actividad de Medición y qué tipo de indicadores sugiere?",
+   "puntajes": [
+    0.9874,
+    0.7262,
+    0.088,
+    0.054
+   ],
+   "fuentes": [
+    "Medición, p. 116",
+    "Medición, p. 117",
+    "Medición › Plan de evaluación de estándares de servicio, p. 118",
+    "Propósito 1: Comprender la experiencia actual de las personas usuarias, p. 31"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-012",
+   "categoria": "respondible",
+   "pregunta": "¿Cada cuánto se deben medir los estándares de servicio en el plan de evaluación?",
+   "puntajes": [
+    0.9907,
+    0.8706,
+    0.2198,
+    0.1996
+   ],
+   "fuentes": [
+    "Medición › Plan de evaluación de estándares de servicio, p. 118",
+    "Medición › Plan de evaluación de estándares de servicio, p. 118",
+    "Medición, p. 117",
+    "Estándares › Ficha de estándares de servicio, p. 92"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-013",
+   "categoria": "respondible",
+   "pregunta": "¿Qué son los momentos críticos de un servicio?",
+   "puntajes": [
+    0.9993,
+    0.9878,
+    0.9686,
+    0.9499
+   ],
+   "fuentes": [
+    "Momentos críticos, p. 126",
+    "Momentos críticos › Mapa de momentos críticos, p. 128",
+    "Momentos críticos › Mapa de momentos críticos, p. 128",
+    "Momentos críticos, p. 127"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-014",
+   "categoria": "respondible",
+   "pregunta": "¿Desde qué insumos se parte para identificar los momentos críticos?",
+   "puntajes": [
+    0.8447,
+    0.7498,
+    0.5204,
+    0.4137
+   ],
+   "fuentes": [
+    "Momentos críticos, p. 126",
+    "Momentos críticos, p. 127",
+    "Momentos críticos › Mapa de momentos críticos, p. 128",
+    "Momentos críticos › Mapa de momentos críticos, p. 128"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-015",
+   "categoria": "respondible",
+   "pregunta": "¿Qué es una fricción en el servicio?",
+   "puntajes": [
+    0.905,
+    0.7615,
+    0.5162,
+    0.4828
+   ],
+   "fuentes": [
+    "Glosario, p. 160",
+    "Momentos críticos › Mapa de momentos críticos, p. 128",
+    "Propósito 1: Comprender la experiencia actual de las personas usuarias, p. 29",
+    "Momentos críticos, p. 126"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-016",
+   "categoria": "respondible",
+   "pregunta": "¿Qué es un punto de contacto?",
+   "puntajes": [
+    0.8404,
+    0.1103,
+    0.0907,
+    0.086
+   ],
+   "fuentes": [
+    "Glosario, p. 161",
+    "Experiencia modelo › Viaje ideal de la persona usuaria, p. 96",
+    "Claves perceptuales › Lista de claves perceptuales, p. 66",
+    "Comunicación, p. 72"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-017",
+   "categoria": "respondible",
+   "pregunta": "Si varios propósitos de la guía parecen adecuados para mi institución, ¿por cuál empiezo?",
+   "puntajes": [
+    0.9754,
+    0.518,
+    0.2887,
+    0.2793
+   ],
+   "fuentes": [
+    "Introducción, p. 19",
+    "Introducción, p. 17",
+    "Introducción, p. 18",
+    "Introducción, p. 16"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-018",
+   "categoria": "respondible",
+   "pregunta": "¿Qué conviene validar antes de comenzar las actividades base?",
+   "puntajes": [
+    0.8314,
+    0.7663,
+    0.5743,
+    0.0561
+   ],
+   "fuentes": [
+    "Lo primero: actividades base para la gestión de la experiencia usuaria, p. 24",
+    "Marco Institucional, p. 113",
+    "Introducción, p. 17",
+    "Lo primero: actividades base para la gestión de la experiencia usuaria, p. 24"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-019",
+   "categoria": "fuera",
+   "pregunta": "¿Qué dice la guía sobre el uso de inteligencia artificial en los servicios públicos?",
+   "puntajes": [
+    0.1091,
+    0.0472,
+    0.0278,
+    0.0201
+   ],
+   "fuentes": [
+    "Introducción, p. 15",
+    "Introducción, p. 14",
+    "Actividades y herramientas, p. 52",
+    "Introducción, p. 16"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-020",
+   "categoria": "fuera",
+   "pregunta": "¿Qué software recomienda la guía para hacer encuestas en línea?",
+   "puntajes": [
+    0.0009,
+    0.0004,
+    0.0004,
+    0.0004
+   ],
+   "fuentes": [
+    "Introducción, p. 15",
+    "Habilitación y Expectativas, p. 101",
+    "Introducción, p. 19",
+    "Medición › Plan de evaluación de estándares de servicio, p. 118"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-021",
+   "categoria": "fuera",
+   "pregunta": "¿Qué exige la Ley 21.180 de Transformación Digital del Estado?",
+   "puntajes": [
+    0.0028,
+    0.0011,
+    0.0011,
+    0.0009
+   ],
+   "fuentes": [
+    "Comunicación, p. 72",
+    "Habilitación y Expectativas, p. 101",
+    "Estándares, p. 91",
+    "Glosario, p. 161"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-022",
+   "categoria": "fuera",
+   "pregunta": "¿Cuál es el sueldo promedio de un diseñador de servicios en Chile?",
+   "puntajes": [
+    0.0018,
+    0.0008,
+    0.0006,
+    0.0005
+   ],
+   "fuentes": [
+    "Introducción, p. 22",
+    "Propósito 5: Diseñar e implementar un nuevo servicio, p. 45",
+    "Modelo operativo › Plano del servicio, p. 122",
+    "Interacciones, p. 105"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-023",
+   "categoria": "fuera",
+   "pregunta": "¿Quién ganó el mundial de fútbol de 2022?",
+   "puntajes": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fuentes": [
+    "Sensibilización › Ficha de actividades de sensibilización, p. 152",
+    "Comunicación › Plan de comunicaciones del servicio, p. 74",
+    "Modelo operativo › Plano del servicio, p. 124",
+    "Competencias › Ficha de competencias para la experiencia, p. 70"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-024",
+   "categoria": "ambigua",
+   "pregunta": "¿Cómo hago el mapa?",
+   "puntajes": [
+    0.2581,
+    0.2145,
+    0.1829,
+    0.1435
+   ],
+   "fuentes": [
+    "Creación de valor › Mapa de co-producción valor, p. 82",
+    "Creación de valor › Mapa de co-producción valor, p. 82",
+    "Actores › Mapa de actores del ecosistema del servicio, p. 56",
+    "Necesidades › Mapa del problema completo, p. 134"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-025",
+   "categoria": "ambigua",
+   "pregunta": "¿Por qué la guía recomienda usar solo datos cuantitativos en la investigación?",
+   "puntajes": [
+    0.4432,
+    0.0215,
+    0.0092,
+    0.0057
+   ],
+   "fuentes": [
+    "Investigación, p. 108",
+    "Investigación › Plan de investigación de experiencia usuaria, p. 110",
+    "Investigación, p. 109",
+    "Introducción, p. 15"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-026",
+   "categoria": "respondible",
+   "pregunta": "¿Qué tipos de actores pueden influir en la experiencia de un servicio público?",
+   "puntajes": [
+    0.9811,
+    0.9766,
+    0.9539,
+    0.9511
+   ],
+   "fuentes": [
+    "Glosario, p. 159",
+    "Actores, p. 54",
+    "Actores › Mapa de actores del ecosistema del servicio, p. 56",
+    "Actores › Mapa de actores del ecosistema del servicio, p. 56"
+   ],
+   "pos_seccion": 2
+  },
+  {
+   "id": "P-027",
+   "categoria": "respondible",
+   "pregunta": "¿Qué hay que anotar para cada actor en el Mapa de actores del ecosistema del servicio?",
+   "puntajes": [
+    0.9981,
+    0.9126,
+    0.7146,
+    0.6444
+   ],
+   "fuentes": [
+    "Actores › Mapa de actores del ecosistema del servicio, p. 56",
+    "Actores › Mapa de actores del ecosistema del servicio, p. 56",
+    "Actores, p. 55",
+    "Creación de valor › Mapa de co-producción valor, p. 82"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-028",
+   "categoria": "respondible",
+   "pregunta": "¿Qué tres factores inciden en el comportamiento de las personas funcionarias según la actividad de Adopción?",
+   "puntajes": [
+    0.9995,
+    0.9666,
+    0.9658,
+    0.9544
+   ],
+   "fuentes": [
+    "Adopción, p. 58",
+    "Adopción, p. 58",
+    "Actividades y herramientas, p. 52",
+    "Actividades y herramientas, p. 52"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-029",
+   "categoria": "respondible",
+   "pregunta": "¿Cuántas técnicas sugiere seleccionar la guía al comenzar las intervenciones para la adopción de estándares?",
+   "puntajes": [
+    0.969,
+    0.9533,
+    0.6768,
+    0.6574
+   ],
+   "fuentes": [
+    "Adopción › Ficha de intervenciones para la adopción, p. 61",
+    "Adopción › Ficha de intervenciones para la adopción, p. 60",
+    "Adopción, p. 58",
+    "Actividades y herramientas, p. 52"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-030",
+   "categoria": "respondible",
+   "pregunta": "¿Qué formas pueden tomar las claves perceptuales?",
+   "puntajes": [
+    0.9997,
+    0.9822,
+    0.9592,
+    0.8488
+   ],
+   "fuentes": [
+    "Claves perceptuales, p. 64",
+    "Claves perceptuales › Lista de claves perceptuales, p. 66",
+    "Claves perceptuales › Lista de claves perceptuales, p. 66",
+    "Claves perceptuales, p. 64"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-031",
+   "categoria": "respondible",
+   "pregunta": "¿Qué habilidades son fundamentales para las personas en contacto (PEC)?",
+   "puntajes": [
+    0.9981,
+    0.8897,
+    0.5117,
+    0.1221
+   ],
+   "fuentes": [
+    "Competencias, p. 68",
+    "Personas, p. 140",
+    "Glosario, p. 161",
+    "Personas › Mapa de perfiles de personas usuarias, p. 142"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-032",
+   "categoria": "respondible",
+   "pregunta": "¿Con qué componentes se describe una competencia en la Ficha de competencias para la experiencia?",
+   "puntajes": [
+    0.9919,
+    0.9834,
+    0.886,
+    0.7087
+   ],
+   "fuentes": [
+    "Competencias › Ficha de competencias para la experiencia, p. 70",
+    "Competencias › Ficha de competencias para la experiencia, p. 70",
+    "Competencias, p. 68",
+    "Competencias, p. 69"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-033",
+   "categoria": "respondible",
+   "pregunta": "¿En qué se diferencia una estrategia comunicacional centrada en las personas de las relaciones públicas?",
+   "puntajes": [
+    0.9994,
+    0.3388,
+    0.0998,
+    0.0885
+   ],
+   "fuentes": [
+    "Comunicación, p. 72",
+    "Propósito 4: Mejorar la colaboración interna para la experiencia usuaria, p. 40",
+    "Comunicación, p. 73",
+    "Competencias, p. 68"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-034",
+   "categoria": "respondible",
+   "pregunta": "¿Cuántos mensajes centrales recomienda definir el Plan de comunicaciones del servicio?",
+   "puntajes": [
+    0.9865,
+    0.6909,
+    0.5274,
+    0.2408
+   ],
+   "fuentes": [
+    "Comunicación › Plan de comunicaciones del servicio, p. 74",
+    "Comunicación › Plan de comunicaciones del servicio, p. 74",
+    "Comunicación, p. 73",
+    "Comunicación, p. 72"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-035",
+   "categoria": "respondible",
+   "pregunta": "¿Qué información se necesita para desarrollar la actividad de Contexto institucional?",
+   "puntajes": [
+    0.9976,
+    0.9868,
+    0.8924,
+    0.8421
+   ],
+   "fuentes": [
+    "Contexto institucional, p. 76",
+    "Contexto institucional, p. 77",
+    "Marco Institucional, p. 112",
+    "Contexto institucional › Ficha de contexto institucional, p. 78"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-036",
+   "categoria": "respondible",
+   "pregunta": "¿En qué categorías se organizan las restricciones en la Ficha de contexto institucional?",
+   "puntajes": [
+    0.9969,
+    0.9927,
+    0.7569,
+    0.3121
+   ],
+   "fuentes": [
+    "Contexto institucional › Ficha de contexto institucional, p. 78",
+    "Actividades y herramientas, p. 53",
+    "Contexto institucional › Ficha de contexto institucional, p. 78",
+    "Contexto institucional, p. 76"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-037",
+   "categoria": "respondible",
+   "pregunta": "¿Qué recursos puede aportar una persona usuaria a la co-creación de valor de un servicio?",
+   "puntajes": [
+    0.9975,
+    0.9969,
+    0.9953,
+    0.9874
+   ],
+   "fuentes": [
+    "Creación de valor, p. 80",
+    "Creación de valor › Mapa de co-producción valor, p. 82",
+    "Creación de valor › Mapa de co-producción valor, p. 82",
+    "Introducción, p. 22"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-038",
+   "categoria": "respondible",
+   "pregunta": "¿Qué caso de aplicación presenta la guía para el Mapa de co-producción de valor?",
+   "puntajes": [
+    0.9831,
+    0.6863,
+    0.6419,
+    0.2715
+   ],
+   "fuentes": [
+    "Creación de valor › Mapa de co-producción valor, p. 84",
+    "Creación de valor › Mapa de co-producción valor, p. 82",
+    "Creación de valor › Mapa de co-producción valor, p. 82",
+    "Creación de valor, p. 81"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-039",
+   "categoria": "respondible",
+   "pregunta": "¿Cuándo conviene desarrollar la actividad de Ecosistema de canales?",
+   "puntajes": [
+    0.9902,
+    0.9402,
+    0.1477,
+    0.1245
+   ],
+   "fuentes": [
+    "Ecosistema de canales, p. 87",
+    "Ecosistema de canales, p. 86",
+    "Claves perceptuales, p. 65",
+    "Ecosistema de canales › Ficha de caracterización de canales, p. 88"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-040",
+   "categoria": "respondible",
+   "pregunta": "¿Qué tipos de necesidad hay que considerar al analizar las prestaciones de cada canal en la Ficha de caracterización de canales?",
+   "puntajes": [
+    0.9992,
+    0.9895,
+    0.832,
+    0.2079
+   ],
+   "fuentes": [
+    "Ecosistema de canales › Ficha de caracterización de canales, p. 88",
+    "Ecosistema de canales › Ficha de caracterización de canales, p. 88",
+    "Ecosistema de canales, p. 87",
+    "Ecosistema de canales, p. 86"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-041",
+   "categoria": "respondible",
+   "pregunta": "¿Qué diferencia hay entre criterios duros y blandos para definir estándares de servicio?",
+   "puntajes": [
+    0.9754,
+    0.9734,
+    0.9033,
+    0.1852
+   ],
+   "fuentes": [
+    "Estándares, p. 90",
+    "Estándares, p. 91",
+    "Estándares, p. 90",
+    "Estándares › Ficha de estándares de servicio, p. 92"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-042",
+   "categoria": "respondible",
+   "pregunta": "¿Qué se anota en la columna «interacción» de la Ficha de estándares de servicio?",
+   "puntajes": [
+    0.9978,
+    0.9212,
+    0.6272,
+    0.3364
+   ],
+   "fuentes": [
+    "Estándares › Ficha de estándares de servicio, p. 92",
+    "Estándares › Ficha de estándares de servicio, p. 92",
+    "Estándares, p. 91",
+    "Glosario, p. 160"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-043",
+   "categoria": "respondible",
+   "pregunta": "¿Qué debe tener definido la institución antes de trabajar la actividad Experiencia modelo?",
+   "puntajes": [
+    0.963,
+    0.943,
+    0.8434,
+    0.8363
+   ],
+   "fuentes": [
+    "Experiencia modelo, p. 95",
+    "Experiencia modelo, p. 94",
+    "Modelo operativo, p. 121",
+    "Lo primero: actividades base para la gestión de la experiencia usuaria, p. 24"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-044",
+   "categoria": "respondible",
+   "pregunta": "Dame un ejemplo de momentos de interacción a nivel general y a nivel de detalle.",
+   "puntajes": [
+    0.9855,
+    0.1551,
+    0.1393,
+    0.1054
+   ],
+   "fuentes": [
+    "Interacciones, p. 105",
+    "Interacciones › Viaje de la persona usuaria, p. 106",
+    "Momentos críticos › Mapa de momentos críticos, p. 128",
+    "Interacciones › Viaje de la persona usuaria, p. 106"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-045",
+   "categoria": "respondible",
+   "pregunta": "¿Qué información recomienda recopilar la actividad Marco Institucional?",
+   "puntajes": [
+    0.9968,
+    0.9874,
+    0.9502,
+    0.863
+   ],
+   "fuentes": [
+    "Marco Institucional, p. 112",
+    "Marco Institucional, p. 113",
+    "Contexto institucional, p. 76",
+    "Marco Institucional › Ficha de caracterización institucional, p. 114"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-046",
+   "categoria": "respondible",
+   "pregunta": "¿Qué niveles de la operación representa el Plano del servicio?",
+   "puntajes": [
+    0.9712,
+    0.5755,
+    0.5391,
+    0.1359
+   ],
+   "fuentes": [
+    "Modelo operativo, p. 121",
+    "Propósito 2: Incorporar perspectiva usuaria al quehacer institucional, p. 33",
+    "Modelo operativo › Plano del servicio, p. 122",
+    "Modelo operativo › Plano del servicio, p. 122"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-047",
+   "categoria": "respondible",
+   "pregunta": "¿Qué atributos deseables comunes para servicios públicos propone la herramienta Pilares del servicio?",
+   "puntajes": [
+    0.9997,
+    0.9992,
+    0.994,
+    0.8388
+   ],
+   "fuentes": [
+    "Necesidades › Pilares del servicio, p. 136",
+    "Necesidades › Pilares del servicio, p. 137",
+    "Necesidades › Pilares del servicio, p. 137",
+    "Claves perceptuales › Lista de claves perceptuales, p. 66"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-048",
+   "categoria": "respondible",
+   "pregunta": "¿Qué niveles de profundidad puede tener la sensibilización interna?",
+   "puntajes": [
+    0.9755,
+    0.6883,
+    0.6251,
+    0.5423
+   ],
+   "fuentes": [
+    "Sensibilización, p. 150",
+    "Sensibilización, p. 151",
+    "Sensibilización, p. 150",
+    "Sensibilización › Ficha de actividades de sensibilización, p. 152"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-049",
+   "categoria": "respondible",
+   "pregunta": "¿Cuántos perfiles de persona usuaria recomienda desarrollar en detalle la guía?",
+   "puntajes": [
+    0.9751,
+    0.9574,
+    0.8832,
+    0.6813
+   ],
+   "fuentes": [
+    "Personas › Perfil de persona usuaria, p. 148",
+    "Personas › Perfil de persona usuaria, p. 148",
+    "Personas, p. 141",
+    "Personas › Perfil de persona usuaria, p. 148"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-050",
+   "categoria": "respondible",
+   "pregunta": "Definimos estándares pero los funcionarios no los aplican en la práctica, ¿qué actividad de la guía me ayuda?",
+   "puntajes": [
+    0.9771,
+    0.8635,
+    0.8229,
+    0.8215
+   ],
+   "fuentes": [
+    "Estándares, p. 90",
+    "Actividades y herramientas, p. 52",
+    "Actividades y herramientas, p. 52",
+    "Adopción, p. 58"
+   ],
+   "pos_seccion": 4
+  },
+  {
+   "id": "P-051",
+   "categoria": "respondible",
+   "pregunta": "¿Qué actividades incluye el propósito de mejorar la satisfacción con un servicio?",
+   "puntajes": [
+    0.9975,
+    0.9859,
+    0.9453,
+    0.9199
+   ],
+   "fuentes": [
+    "Propósito 3: Mejorar la satisfacción con un servicio, p. 37",
+    "Propósito 3: Mejorar la satisfacción con un servicio, p. 37",
+    "Propósito 3: Mejorar la satisfacción con un servicio, p. 36",
+    "Habilitación y Expectativas, p. 101"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-052",
+   "categoria": "respondible",
+   "pregunta": "Es la primera vez que usamos la guía, ¿conviene partir diseñando un servicio nuevo?",
+   "puntajes": [
+    0.9899,
+    0.5183,
+    0.4944,
+    0.2053
+   ],
+   "fuentes": [
+    "Propósito 5: Diseñar e implementar un nuevo servicio, p. 45",
+    "Propósito 5: Diseñar e implementar un nuevo servicio, p. 44",
+    "Introducción, p. 16",
+    "Propósito 5: Diseñar e implementar un nuevo servicio, p. 45"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-053",
+   "categoria": "respondible",
+   "pregunta": "Estamos en la etapa de necesidades: ¿qué herramienta usamos para definir los atributos clave que sustentarán la experiencia?",
+   "puntajes": [
+    0.9576,
+    0.4556,
+    0.2938,
+    0.2433
+   ],
+   "fuentes": [
+    "Necesidades › Pilares del servicio, p. 136",
+    "Experiencia modelo › Viaje ideal de la persona usuaria, p. 96",
+    "Propósito 1: Comprender la experiencia actual de las personas usuarias, p. 29",
+    "Necesidades, p. 133"
+   ],
+   "pos_seccion": 1
+  },
+  {
+   "id": "P-054",
+   "categoria": "fuera",
+   "pregunta": "¿Cuántas personas debe tener el Comité de Calidad de una institución?",
+   "puntajes": [
+    0.0492,
+    0.0103,
+    0.0094,
+    0.0069
+   ],
+   "fuentes": [
+    "Sensibilización, p. 150",
+    "Introducción, p. 15",
+    "Introducción, p. 19",
+    "Introducción, p. 19"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-055",
+   "categoria": "fuera",
+   "pregunta": "¿Qué presupuesto mínimo recomienda la guía para una campaña de comunicaciones del servicio?",
+   "puntajes": [
+    0.3982,
+    0.2963,
+    0.0265,
+    0.0197
+   ],
+   "fuentes": [
+    "Comunicación › Plan de comunicaciones del servicio, p. 74",
+    "Comunicación, p. 73",
+    "Comunicación › Plan de comunicaciones del servicio, p. 74",
+    "Comunicación › Plan de comunicaciones del servicio, p. 74"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-056",
+   "categoria": "fuera",
+   "pregunta": "¿Qué puntaje de la encuesta MESU se considera aceptable según la guía?",
+   "puntajes": [
+    0.0551,
+    0.0196,
+    0.0114,
+    0.0088
+   ],
+   "fuentes": [
+    "Habilitación y Expectativas, p. 100",
+    "Habilitación y Expectativas › Mapa de expectativas, p. 102",
+    "Propósito 3: Mejorar la satisfacción con un servicio, p. 37",
+    "Marco Institucional › Ficha de caracterización institucional, p. 114"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-057",
+   "categoria": "fuera",
+   "pregunta": "Explícame paso a paso cómo completar la Matriz RACI según la guía.",
+   "puntajes": [
+    0.0828,
+    0.0141,
+    0.0055,
+    0.0052
+   ],
+   "fuentes": [
+    "Modelo operativo, p. 121",
+    "Personas › Mapa de perfiles de personas usuarias, p. 144",
+    "Personas › Mapa de perfiles de personas usuarias, p. 142",
+    "Introducción, p. 17"
+   ],
+   "pos_seccion": null
+  },
+  {
+   "id": "P-058",
+   "categoria": "ambigua",
+   "pregunta": "¿Cómo se llena la ficha?",
+   "puntajes": [
+    0.1587,
+    0.1503,
+    0.0212,
+    0.0154
+   ],
+   "fuentes": [
+    "Marco Institucional › Ficha de caracterización institucional, p. 114",
+    "Marco Institucional › Ficha de caracterización institucional, p. 114",
+    "Adopción › Ficha de intervenciones para la adopción, p. 61",
+    "Ecosistema de canales › Ficha de caracterización de canales, p. 88"
+   ],
+   "pos_seccion": null
+  }
+ ]
+}
