@@ -77,3 +77,10 @@ encuentro esa información en la guía.» sin llamar al LLM. Resultado del 2026-
 - El set tiene solo 9 preguntas de fuera. Conviene recalibrar al ampliarlo y siempre que cambie el
   reranker, porque los puntajes no son comparables entre modelos.
 
+
+## Chroma y pgvector
+
+`comparar_almacenes.py` recupera los 20 candidatos de cada pregunta (sin reranker) en Chroma y en
+pgvector (Supabase) y compara los fragmentos, los puntajes y el recall de cada uno. Con el índice
+copiado desde Chroma (`ingesta.indexar --desde-chroma`) los dos tienen los mismos vectores y
+deberían coincidir. Resultado en `resultados/comparacion_almacenes.json`.

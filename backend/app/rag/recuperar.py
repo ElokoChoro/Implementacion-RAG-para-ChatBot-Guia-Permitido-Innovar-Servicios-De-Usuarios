@@ -1,8 +1,9 @@
 """
 Recuperación de fragmentos de la guía para una pregunta, en dos pasos:
 
-  1. Búsqueda por similitud: bge-m3 vectoriza la pregunta y Chroma devuelve los
-     RERANKER_CANDIDATOS fragmentos más parecidos (coseno).
+  1. Búsqueda por similitud: bge-m3 vectoriza la pregunta y el vector store de
+     ALMACEN (Chroma o pgvector) devuelve los RERANKER_CANDIDATOS fragmentos
+     más parecidos (coseno).
   2. Reranking: bge-reranker-v2-m3 lee cada par (pregunta, fragmento) y deja los
      TOP_K más relevantes, con un puntaje entre 0 y 1.
 
@@ -22,12 +23,12 @@ from llama_index.core.schema import NodeWithScore, QueryBundle
 from llama_index.core.vector_stores import FilterOperator, MetadataFilter, MetadataFilters
 
 from app.rag import config
-from app.rag.indice import indice
+from app.rag.indice import descripcion, indice
 from app.rag.modelos import reordenador
 
 
 def _filtros(etapa: int | None) -> MetadataFilters | None:
-    """Filtro de Chroma por el metadato `etapa`; None si no se pidió etapa."""
+    """Filtro por el metadato `etapa`; None si no se pidió etapa."""
     if not etapa:
         return None
     return MetadataFilters(filters=[MetadataFilter(key="etapa", value=etapa,
@@ -64,7 +65,7 @@ def main():
 
     t0 = time.time()
     nodos = recuperar(args.pregunta, args.etapa, args.k, not args.sin_reranker)
-    print(f"{len(nodos)} fragmentos en {time.time() - t0:.1f} s ({config.coleccion()})\n")
+    print(f"{len(nodos)} fragmentos en {time.time() - t0:.1f} s ({descripcion()})\n")
     for i, n in enumerate(nodos, 1):
         texto = n.node.get_content().replace("\n", " ")
         print(f"{i}. [{n.score:.3f}] {n.node.metadata['fuente']}\n   {texto[:220]}…\n")
