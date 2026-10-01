@@ -8,7 +8,14 @@ type ChatProps = {
   onDraftChange: (value: string) => void
   onSend: () => void
   onToggleSidebar: () => void
+  waiting: boolean
 }
+
+const SUGERENCIAS = [
+  '¿Qué es un mapa de momentos críticos?',
+  '¿Cómo se hace un plano del servicio?',
+  '¿Qué etapas tiene la guía?',
+]
 
 export function Chat({
   conversation,
@@ -16,6 +23,7 @@ export function Chat({
   onDraftChange,
   onSend,
   onToggleSidebar,
+  waiting,
 }: ChatProps) {
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -45,7 +53,7 @@ export function Chat({
         </button>
         <div>
           <h1>{conversation.title}</h1>
-          <p>Respuestas basadas en documentos internos</p>
+          <p>Respuestas basadas en la guía Permitido Innovar</p>
         </div>
         <button className="icon-btn" type="button" aria-label="Más opciones">
           <IconDots />
@@ -59,27 +67,42 @@ export function Chat({
               <IconSpark size={28} />
             </span>
             <h2>¿En qué te ayudo hoy?</h2>
-            <p>Consultá políticas, procedimientos o documentación de la empresa.</p>
+            <p>
+              Pregunta sobre «¿Cómo podemos innovar en los servicios públicos desde la experiencia
+              usuaria?». Cada respuesta cita la sección y la página de la guía.
+            </p>
             <div className="suggestions">
-              <button type="button" onClick={() => onDraftChange('Resumí la política de vacaciones.')}>
-                Política de vacaciones
-              </button>
-              <button type="button" onClick={() => onDraftChange('¿Cuál es el SLA de un incidente P1?')}>
-                SLA de incidentes
-              </button>
-              <button type="button" onClick={() => onDraftChange('Pasos del onboarding técnico')}>
-                Onboarding técnico
-              </button>
+              {SUGERENCIAS.map((sugerencia) => (
+                <button key={sugerencia} type="button" onClick={() => onDraftChange(sugerencia)}>
+                  {sugerencia}
+                </button>
+              ))}
             </div>
           </div>
         ) : (
           conversation.messages.map((message) => (
             <article key={message.id} className={`bubble-row ${message.role}`}>
-              <div className={`bubble ${message.role}`}>
+              <div className={`bubble ${message.role} ${message.status ?? ''}`}>
                 {message.role === 'assistant' && (
-                  <span className="bubble-label">Asistente</span>
+                  <span className="bubble-label">
+                    Asistente
+                    {message.confianza && (
+                      <span className={`confidence ${message.confianza}`}>
+                        confianza {message.confianza}
+                      </span>
+                    )}
+                  </span>
                 )}
                 <p>{message.content}</p>
+                {message.fuentes && message.fuentes.length > 0 && (
+                  <ul className="sources" aria-label="Fuentes">
+                    {message.fuentes.map((fuente, index) => (
+                      <li key={`${fuente.fuente}-${index}`} title={fuente.fragmento}>
+                        {fuente.fuente}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <time>{message.time}</time>
               </div>
             </article>
@@ -97,10 +120,10 @@ export function Chat({
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Escribí tu pregunta…"
+          placeholder={waiting ? 'Esperando la respuesta…' : 'Escribe tu pregunta…'}
           aria-label="Mensaje"
         />
-        <button className="send" type="submit" disabled={!draft.trim()} aria-label="Enviar">
+        <button className="send" type="submit" disabled={!draft.trim() || waiting} aria-label="Enviar">
           <IconSend />
         </button>
       </form>

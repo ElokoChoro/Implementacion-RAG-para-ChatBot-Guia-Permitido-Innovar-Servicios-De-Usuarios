@@ -10,3 +10,6 @@ python-dotenv>=1.2,<2
 FlagEmbedding>=1.4.2,<1.5
 # LLM local: cliente de Ollama (el modelo, gemma3:4b, se descarga con `ollama pull`)
 llama-index-llms-ollama>=0.11,<0.12
+# API HTTP para la interfaz de chat (app/api.py)
+fastapi>=0.142,<0.143
+uvicorn>=0.54,<0.55

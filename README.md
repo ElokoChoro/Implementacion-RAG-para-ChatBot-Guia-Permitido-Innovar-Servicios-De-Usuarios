@@ -5,7 +5,8 @@ desde la experiencia usuaria?», cita la sección y página de origen y funciona
 
 | Carpeta | Contenido |
 | --- | --- |
-| `src/` | Interfaz de chat de demo (React + Vite) |
+| `src/` | Interfaz de chat de demo (React + Vite), conectada a la API |
+| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia` |
 | `backend/app/rag/` | Modelos, índice y recuperación del RAG |
 | `ingesta/` | Extraer la guía → corpus con metadatos → índice vectorial |
 | `data/corpus/` | Corpus extraído y versionado ([README](data/corpus/README.md)) |
@@ -184,8 +185,23 @@ Compara modelos de embeddings con y sin reranker; necesita Ollama con `qwen3-emb
 
 Métricas y últimos resultados en [eval/README.md](eval/README.md).
 
-## Interfaz de demo
+## Chatbot de prueba
+
+La interfaz de `src/` le pregunta a la API de `backend/app/api.py`, que llama a `generar.responder()`
+y devuelve la respuesta con sus fuentes y su confianza. Se necesitan dos terminales, más Ollama
+corriendo con `gemma3:4b`. Para consultar el índice de Supabase, pon `ALMACEN=pgvector` y
+`SUPABASE_DB_URL` en `.env`.
+
+```bash
+cd backend && ../.venv/bin/uvicorn app.api:app --port 8000
+```
 
 ```bash
 npm install && npm run dev
 ```
+
+Vite reenvía `/ia` a `http://localhost:8000` (cámbialo con `RAG_API_URL`), así que el backend no
+necesita CORS. Las preguntas se atienden de a una y la primera carga los modelos, así que tarda más;
+en un Mac de 8 GB cada respuesta puede tardar minutos. Si Ollama no está disponible, la API responde
+503 con el motivo y la interfaz lo muestra en el chat. `GET /salud` muestra la configuración activa
+y `http://localhost:8000/docs`, el esquema de la API.

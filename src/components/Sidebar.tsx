@@ -26,7 +26,7 @@ export function Sidebar({
         </span>
         <div>
           <p className="brand-name">RAG ChatBot</p>
-          <p className="brand-sub">Base de conocimiento</p>
+          <p className="brand-sub">Guía Permitido Innovar</p>
         </div>
       </div>
 
