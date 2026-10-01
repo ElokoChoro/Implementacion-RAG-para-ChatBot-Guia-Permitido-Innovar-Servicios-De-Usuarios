@@ -11,17 +11,18 @@ desde la experiencia usuaria?», cita la sección y página de origen y funciona
 | `data/corpus/` | Corpus extraído y versionado ([README](data/corpus/README.md)) |
 | `data/fuentes/` | Manifiesto del PDF (el PDF no se versiona) |
 | `eval/` | Set de preguntas y comparaciones de recuperación ([README](eval/README.md)) |
+| `supabase/migrations/` | Esquema de la base en Supabase: tabla del índice con pgvector |
 
 ## Pipeline
 
 ```text
 PDF ──Docling standard, sin OCR──▶ JSON ──▶ paginas.jsonl ──SentenceSplitter 400/50──▶ fragmentos
                                                                                       │ bge-m3 (FlagEmbedding)
-pregunta ──bge-m3──▶ top 20 por coseno en Chroma ──bge-reranker-v2-m3──▶ top 4 ◀──────┘
-                                                                            │ umbral
-                          «No encuentro esa información en la guía.» ◀──no──┤ ¿algún fragmento ≥ UMBRAL?
-                                                                            │ sí
-                          respuesta con citas y confianza ◀──gemma3:4b (Ollama)
+pregunta ──bge-m3──▶ top 20 por coseno en el índice ──bge-reranker-v2-m3──▶ top 4 ◀───┘
+                                                                               │ umbral
+                             «No encuentro esa información en la guía.» ◀──no──┤ ¿algún fragmento ≥ UMBRAL?
+                                                                               │ sí
+                             respuesta con citas y confianza ◀──gemma3:4b (Ollama)
 ```
 
 | Pieza | Elección | Configuración (`backend/app/rag/config.py`) |
@@ -30,7 +31,7 @@ pregunta ──bge-m3──▶ top 20 por coseno en Chroma ──bge-reranker-v2
 | Corpus | `v1`, una página por bloque, págs. 13–161 | `VERSION_CORPUS` |
 | Fragmentos | `SentenceSplitter` de LlamaIndex, 400 tokens, solapamiento 50 | `CHUNK_TOKENS`, `CHUNK_OVERLAP` |
 | Embeddings | `BAAI/bge-m3` con FlagEmbedding, densos, 1024 dimensiones | `EMBEDDINGS` |
-| Vector store | Chroma local, distancia coseno | `RUTA_CHROMA` |
+| Vector store | Chroma local o pgvector en Supabase, distancia coseno | `ALMACEN`, `RUTA_CHROMA`, `SUPABASE_DB_URL` |
 | Reranker | `BAAI/bge-reranker-v2-m3` con FlagEmbedding, puntaje 0–1 | `RERANKER`, `RERANKER_CANDIDATOS`, `TOP_K`, `USAR_RERANKER` |
 | Umbral | Puntaje del reranker ≥ 0,5; si ningún fragmento llega, se rechaza sin LLM | `UMBRAL` |
 | LLM | `gemma3:4b` en Ollama, temperature 0,1, contexto de 4096 tokens | `LLM`, `TEMPERATURE`, `CONTEXTO_TOKENS`, `MAX_TOKENS_RESPUESTA` |
@@ -101,13 +102,61 @@ Para regenerar el corpus desde el PDF (por ejemplo, si cambia la guía o la vers
 `ingesta.extraer` compara el hash del PDF con `data/fuentes/guia.yaml`. `ingesta.corpus --ver 148`
 muestra cómo quedó una página.
 
+## Índice en Supabase (pgvector)
+
+Con `ALMACEN=pgvector` el índice vive en Supabase, en la tabla `public.data_guia_fragmentos`
+(`vector(1024)`, índice HNSW por coseno y RLS sin políticas, así que la API pública no la lee). Los
+embeddings se siguen calculando en local; a Supabase solo llegan los vectores, el texto y los metadatos.
+
+1. Copia `.env.example` como `.env` y completa `SUPABASE_DB_URL` con el connection string del
+   *Session pooler* (Project Settings › Database › Connection string) y la contraseña de la base.
+2. Aplica la migración, con la [CLI de Supabase](https://supabase.com/docs/guides/cli):
+
+   ```bash
+   npx supabase link --project-ref <project-ref>
+   ```
+
+   ```bash
+   npx supabase db push
+   ```
+
+   o directamente con `psql`:
+
+   ```bash
+   psql "$SUPABASE_DB_URL" -f supabase/migrations/20261001120000_indice_guia.sql
+   ```
+
+3. Carga el índice. Si ya está en Chroma, copia esos mismos vectores sin cargar el modelo:
+
+   ```bash
+   ALMACEN=pgvector .venv/bin/python -m ingesta.indexar --desde-chroma
+   ```
+
+   o vectoriza el corpus desde cero:
+
+   ```bash
+   ALMACEN=pgvector .venv/bin/python -m ingesta.indexar
+   ```
+
+4. Compara la recuperación con Chroma (deja el resultado en `eval/resultados/`):
+
+   ```bash
+   .venv/bin/python eval/comparar_almacenes.py
+   ```
+
+La tabla guarda una sola configuración. Si cambia el corpus o la fragmentación, se vuelve a ejecutar
+el paso 3; la consulta avisa si la tabla se cargó con otra configuración. Si cambia el modelo de
+embeddings (y con él la dimensión), hace falta una migración nueva. Supabase pausa los proyectos
+gratuitos tras una semana sin actividad: antes de una demo, revisa que el proyecto esté activo.
+
 ## Probar la recuperación
 
 ```bash
 cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de momentos críticos?" --etapa 7
 ```
 
-`--sin-reranker` muestra el orden solo por similitud, para comparar.
+`--sin-reranker` muestra el orden solo por similitud, para comparar. Con `ALMACEN=pgvector` (en el
+entorno o en `.env`) consulta el índice de Supabase.
 
 ## Probar la generación
 

@@ -21,7 +21,10 @@ CHUNK_OVERLAP          Tokens que comparten dos fragmentos seguidos.
 RERANKER_CANDIDATOS    Fragmentos que se recuperan por similitud antes del reranker.
 TOP_K                  Fragmentos que se entregan al final.
 USAR_RERANKER          Si es false, se entregan los TOP_K más similares sin reordenar.
+ALMACEN                Vector store: «chroma» (local, por defecto) o «pgvector» (Supabase).
 RUTA_CHROMA            Carpeta donde Chroma guarda el índice.
+SUPABASE_DB_URL        Connection string de Postgres de Supabase (solo con ALMACEN=pgvector).
+TABLA_PGVECTOR         Tabla del índice en pgvector, sin el prefijo «data_» de PGVectorStore.
 OLLAMA_URL             Dirección del servidor de Ollama.
 LLM                    Modelo de Ollama que redacta la respuesta («gemma3:4b»).
 TEMPERATURE            Aleatoriedad del LLM; baja para que se apegue a la guía.
@@ -33,13 +36,20 @@ CONFIANZA_MEDIA        Mejor puntaje desde el que la confianza es «media».
 CONFIANZA_ALTA         Mejor puntaje desde el que la confianza es «alta».
 
 Si cambian EMBEDDINGS, CHUNK_TOKENS, CHUNK_OVERLAP o VERSION_CORPUS, hay que
-volver a indexar (python -m ingesta.indexar). Cada combinación usa su propia
-colección (ver `coleccion()`), así que los índices anteriores no se pisan.
+volver a indexar (python -m ingesta.indexar). En Chroma cada combinación usa su
+propia colección (ver `coleccion()`), así que los índices anteriores no se pisan.
+En pgvector hay una sola tabla, que se recarga completa al indexar.
+
+Las variables también se leen del archivo .env de la raíz del repositorio (ver
+.env.example); las que ya están definidas en el entorno tienen prioridad.
 """
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 RAIZ = Path(__file__).resolve().parents[3]  # raíz del repositorio
+load_dotenv(RAIZ / ".env")
 
 
 def _env(nombre: str, defecto, tipo=str):
@@ -86,8 +96,18 @@ TOP_K = _env("TOP_K", 4, int)
 USAR_RERANKER = _env("USAR_RERANKER", True, bool)
 
 # ---- Vector store -------------------------------------------------------------
+# «chroma»: índice local en disco. «pgvector»: índice en Supabase, compartido por el
+# equipo; la tabla se crea con supabase/migrations/ y se carga con ingesta.indexar.
+ALMACEN = _env("ALMACEN", "chroma")
 # Chroma guarda el índice en disco, dentro del repositorio (carpeta ignorada por git).
 RUTA_CHROMA = Path(_env("RUTA_CHROMA", str(RAIZ / "storage" / "chroma")))
+# Connection string de Supabase (Project Settings › Database › Connection string,
+# «Session pooler», que funciona con IPv4), con la contraseña de la base:
+#   postgresql://postgres.<ref>:<contraseña>@aws-0-<región>.pooler.supabase.com:5432/postgres
+# Da acceso completo a la base: va solo en .env, nunca en el frontend.
+SUPABASE_DB_URL = _env("SUPABASE_DB_URL", "")
+# PGVectorStore le antepone «data_»: la tabla real es public.data_guia_fragmentos.
+TABLA_PGVECTOR = _env("TABLA_PGVECTOR", "guia_fragmentos")
 
 # ---- LLM local (Ollama) ---------------------------------------------------------
 # gemma3:4b ocupa ~3,3 GB. Con un contexto de 8192 tokens, en un Mac de 8 GB con

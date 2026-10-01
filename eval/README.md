@@ -77,3 +77,24 @@ encuentro esa información en la guía.» sin llamar al LLM. Resultado del 2026-
 - El set tiene solo 9 preguntas de fuera. Conviene recalibrar al ampliarlo y siempre que cambie el
   reranker, porque los puntajes no son comparables entre modelos.
 
+
+## Chroma y pgvector
+
+`comparar_almacenes.py` recupera los 20 candidatos de cada pregunta (sin reranker) en Chroma y en
+pgvector (Supabase) y compara los fragmentos, los puntajes y el recall de cada uno. Con el índice
+copiado desde Chroma (`ingesta.indexar --desde-chroma`) los dos tienen los mismos vectores y
+deberían coincidir. Resultado del 2026-10-01, con los 207 fragmentos de `guia_v1_bge-m3_c400o50`
+copiados a Supabase (`resultados/comparacion_almacenes.json`):
+
+| Almacén | `recall@4` | `mrr@4` | `recall@20` | Segundos por pregunta |
+| --- | --- | --- | --- | --- |
+| Chroma (local) | 95,7 | 0,906 | 100 | 0,26 |
+| pgvector (Supabase, `sa-east-1`) | 95,7 | 0,906 | 100 | 1,03 |
+
+- Los dos devuelven los mismos 20 candidatos, en el mismo orden, en las 47 preguntas.
+- El puntaje de similitud cambia de escala, no de orden: Chroma entrega `exp(-distancia)` y
+  pgvector `1 - distancia` (las distancias coinciden hasta 10⁻⁶). No afecta al umbral ni a la
+  confianza, que usan el puntaje del reranker; sí habría que recalibrar si se usara el umbral sin
+  reranker.
+- pgvector suma ~0,8 s por pregunta por la ida y vuelta a Supabase, poco frente a los ~5 s del
+  reranker.
