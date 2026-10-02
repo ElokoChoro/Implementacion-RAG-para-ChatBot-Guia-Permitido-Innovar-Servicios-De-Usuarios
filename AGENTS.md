@@ -13,12 +13,13 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 | Carpeta | Contenido |
 | --- | --- |
 | `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `prompts`, `generar` |
+| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia` y `GET /salud`; atiende las preguntas de a una |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
-| `data/corpus/v1/` | Corpus versionado, una página por línea (`paginas.jsonl`) |
+| `data/corpus/v2/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v1/` queda como referencia |
 | `data/fuentes/guia.yaml` | Manifiesto y SHA-256 del PDF (el PDF no se versiona) |
 | `eval/` | Set de preguntas, scripts de comparación y calibración, resultados en `eval/resultados/` |
 | `supabase/migrations/` | Tabla `public.data_guia_fragmentos` con pgvector |
-| `src/` | Interfaz de chat de demo (React 19 + Vite + TypeScript). Usa datos de ejemplo (`src/data.ts`): todavía no llama al backend |
+| `src/` | Chatbot de prueba (React 19 + Vite + TypeScript). Llama a la API mediante el proxy de Vite (`/ia` → puerto 8000) |
 | `Modelfile`, `docs/` | Prompt inicial para Ollama. **No es el prompt vigente**: el que usa el backend está en `backend/app/rag/prompts.py` |
 
 Pipeline: Docling `standard` sin OCR → `SentenceSplitter` 400/50 → `BAAI/bge-m3` → Chroma o
@@ -37,6 +38,7 @@ ALMACEN=pgvector .venv/bin/python -m ingesta.indexar --desde-chroma   # copia el
 .venv/bin/python -m ingesta.corpus --ver 148               # muestra cómo quedó una página
 cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de momentos críticos?" --etapa 7
 cd backend && ../.venv/bin/python -m app.rag.generar "¿Qué es un plano del servicio?" --json
+cd backend && ../.venv/bin/uvicorn app.api:app --port 8000   # API para el chatbot (npm run dev en otra terminal)
 .venv/bin/python eval/calibrar_umbral.py                   # umbral y cortes de confianza
 .venv/bin/python eval/comparar_embeddings.py               # necesita Ollama con qwen3-embedding y embeddinggemma
 .venv/bin/python eval/comparar_almacenes.py                # necesita los dos índices y SUPABASE_DB_URL
@@ -77,9 +79,10 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
 - **Confianza y fuentes** salen del puntaje del reranker y de los metadatos de los fragmentos, nunca
   del texto del LLM. `Respuesta` en `generar.py` tiene la forma del contrato `POST /ia/consultar-guia`:
   no cambies sus campos sin acordarlo.
-- **Corpus**: `data/corpus/v1/paginas.jsonl` no se edita a mano; se regenera con `ingesta.corpus`.
+- **Corpus**: `data/corpus/v2/paginas.jsonl` no se edita a mano; se regenera con `ingesta.corpus`.
   Un cambio de extracción o de metadatos que altere el corpus va en una versión nueva
-  (`data/corpus/v2/`), no sobre `v1`. Formato en [data/corpus/README.md](data/corpus/README.md).
+  (`data/corpus/v3/`), no sobre `v2`. Los créditos (p. 2) se indexan como `FICHA_CREDITOS`
+  (`ingesta/corpus.py`); si cambia la guía, revísala contra la página. Formato en [data/corpus/README.md](data/corpus/README.md).
 - **Evaluación**: los resultados de `eval/resultados/*.json` se versionan. Si vuelves a correr un
   script, actualiza la tabla correspondiente de `eval/README.md` con la fecha.
 - **Migraciones**: nunca edites una migración ya aplicada; agrega una nueva con fecha en el nombre.

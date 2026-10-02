@@ -26,11 +26,40 @@ from docling_core.types.doc.document import (DEFAULT_EXPORT_LABELS, ContentLayer
 from ingesta.extraer import RAIZ, SALIDA as ENTRADA
 from app.rag import config
 
-# Páginas que entran al índice: desde la Introducción hasta el Glosario. Quedan
-# fuera la portada, los créditos, los prólogos, «¿Cómo elaboramos esta guía?» y
-# las referencias, que no responden preguntas sobre cómo aplicar la guía.
-PAGINA_MINIMA, PAGINA_MAXIMA = 13, 161
+# Páginas que entran al índice: los créditos (2), los prólogos (8-11), de la
+# Introducción al Glosario (13-161) y «¿Cómo elaboramos esta guía?» (162-163).
+# Créditos, prólogos y elaboración responden quién hizo la guía, cuándo y cómo.
+# Quedan fuera la portada, los índices (4-7), las referencias, el equipo y la
+# contraportada.
+PAGINAS = {2, *range(8, 12), *range(13, 164)}
 PALABRAS_MINIMAS = 15  # descarta portadillas casi vacías
+
+# Los créditos (p. 2) se indexan como esta ficha y no con el texto extraído. En la
+# página, la autoría está en «¿Cómo citar este libro?» y «Esta obra…», entre
+# listas de nombres en mayúsculas, y el reranker no la relaciona con preguntas
+# como «¿Quién es el autor de la guía?» (puntaje 0,02, bajo el UMBRAL). La ficha
+# dice lo mismo que la página, nombrando «la guía» y la autoría. Si cambia la
+# guía, hay que revisarla contra la p. 2.
+FICHA_CREDITOS = """## Créditos de la guía
+
+Autoría: los autores de la guía «¿Cómo podemos innovar en los servicios públicos desde la experiencia \
+usuaria?» son el Laboratorio de Gobierno del Ministerio de Hacienda (Gobierno de Chile) y el \
+Observatorio UX de la Universidad Tecnológica Metropolitana (UTEM). La guía surge del trabajo \
+colaborativo entre ambos, es parte de la serie Permitido Innovar: Guías para transformar el Estado \
+chileno y se publicó en 2025.
+
+- Licencia: Creative Commons Atribución-NoComercial-CompartirIgual 4.0 Internacional (CC BY-NC-SA 4.0).
+- Coordinación: Elisa Breull.
+- Textos: Elisa Breull y Lorena Torres.
+- Edición: Daniela Herrera.
+- Diseño gráfico y sistematización visual: Myriam Meyer y María Eliana Devia.
+- Observatorio UX UTEM: María de los Ángeles Ferrer, Erwin Aguirre y Ronald Méndez.
+- Equipo Laboratorio de Gobierno: Alejandra Gómez, Carlos Carrillo, Constanza Jeldres, Constanza \
+Pérez, Daniela Herrera, Eduardo Navarro, Elisa Breull, Fran Garretón, Francisca Flores, Francisca \
+Moya, Francisco Díaz, Fremberling Ramos, Giancarlo Sillerico, Javiera Miranda, Laura González, \
+Lorena Torres, María Eliana Devia, Myriam Meyer, Nicolás Galvez, Octavio Cortez, Orlando Rojas, \
+Pablo Bórquez, Rodrigo Silva, Sebastián Altimira, Tomás Dintrans y Víctor Toledo.
+- Cómo citarla: Laboratorio de Gobierno, Gobierno de Chile y Universidad Tecnológica Metropolitana (2025)."""
 
 # --------------------------------------------------------------------------
 # Estructura de la guía, tomada de sus índices (págs. 4 a 6).
@@ -38,7 +67,7 @@ PALABRAS_MINIMAS = 15  # descarta portadillas casi vacías
 # revisar estas tablas.
 # --------------------------------------------------------------------------
 SECCIONES = [
-    (1, "Portada y créditos"),
+    (1, "Créditos de la guía"),
     (8, "Prólogos"),
     (10, "Innovación pública y democracia"),
     (13, "Introducción"),
@@ -177,12 +206,12 @@ def texto_pagina(doc: DoclingDocument, n: int) -> str:
 
 
 def paginas(doc: DoclingDocument) -> list[dict]:
-    """Registros del corpus: una página por registro, dentro del rango indexado y con texto suficiente."""
+    """Registros del corpus: una página por registro, de las PAGINAS indexadas y con texto suficiente."""
     registros = []
     for n in sorted(doc.pages):
-        if not PAGINA_MINIMA <= n <= PAGINA_MAXIMA:
+        if n not in PAGINAS:
             continue
-        texto = texto_pagina(doc, n)
+        texto = FICHA_CREDITOS if n == 2 else texto_pagina(doc, n)
         if len(texto.split()) < PALABRAS_MINIMAS:
             continue
         ubic = ubicar(n)
@@ -220,7 +249,7 @@ def main():
     config.RUTA_PAGINAS.write_text(
         "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in registros), encoding="utf-8")
     palabras = sum(len(r["texto"].split()) for r in registros)
-    print(f"{len(registros)} páginas · {palabras:,} palabras · págs. {PAGINA_MINIMA}–{PAGINA_MAXIMA} "
+    print(f"{len(registros)} páginas · {palabras:,} palabras · págs. {min(PAGINAS)}–{max(PAGINAS)} "
           f"-> {config.RUTA_PAGINAS.relative_to(RAIZ)}")
 
 

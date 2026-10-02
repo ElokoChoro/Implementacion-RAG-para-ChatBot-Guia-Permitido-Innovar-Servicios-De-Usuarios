@@ -64,7 +64,7 @@ vectores, si eliges el índice en Supabase).
 <td width="50%" valign="top">
 
 ### 📊 Medido, no supuesto
-58 preguntas de evaluación, comparación de modelos, calibración del umbral y de la confianza. Los
+63 preguntas de evaluación, comparación de modelos, calibración del umbral y de la confianza. Los
 resultados se versionan en [`eval/`](eval/README.md).
 
 </td>
@@ -75,17 +75,17 @@ resultados se versionan en [`eval/`](eval/README.md).
 
 ## 📈 Resultados
 
-Sobre el set de 58 preguntas ([detalle](eval/README.md)), en un Mac M2 de 8 GB:
+Sobre el set de 63 preguntas y el corpus `v2` ([detalle](eval/README.md)), en un Mac M2 de 8 GB:
 
 <div align="center">
 
 | | Métrica | Valor |
 | :---: | --- | :---: |
-| 🔎 | Sección correcta entre los 4 fragmentos (`recall@4`, con reranker) | **97,9 %** |
-| 🥇 | Posición del primer fragmento correcto (`MRR@4`) | **0,952** |
+| 🔎 | Sección correcta entre los 4 fragmentos (`recall@4`, con reranker) | **98,0 %** |
+| 🥇 | Posición del primer fragmento correcto (`MRR@4`) | **0,956** |
 | 🚫 | Preguntas fuera de la guía rechazadas (umbral 0,5) | **100 %** |
 | ✅ | Preguntas respondibles rechazadas por error | **0 %** |
-| 🟢 | Respondibles con confianza `alta` (reranker ≥ 0,9) | **43 de 46** |
+| 🟢 | Respondibles con confianza `alta` (reranker ≥ 0,9) | **45 de 51** |
 
 </div>
 
@@ -98,8 +98,8 @@ flowchart LR
     subgraph ING["📥 Ingesta (una vez)"]
         direction LR
         PDF["📄 PDF de la guía"] -->|"Docling standard<br>sin OCR"| JSON["JSON por página"]
-        JSON --> CORPUS["paginas.jsonl<br>corpus v1"]
-        CORPUS -->|"SentenceSplitter<br>400 / 50"| FRAG["207 fragmentos"]
+        JSON --> CORPUS["paginas.jsonl<br>corpus v2"]
+        CORPUS -->|"SentenceSplitter<br>400 / 50"| FRAG["221 fragmentos"]
         FRAG -->|"bge-m3"| IDX[("Índice<br>Chroma o pgvector")]
     end
 
@@ -119,7 +119,7 @@ flowchart LR
 | Pieza | Elección | Configuración ([`config.py`](backend/app/rag/config.py)) |
 | --- | --- | --- |
 | 📄 Extracción | Docling 2.131, pipeline `standard`, sin OCR | — |
-| 📚 Corpus | `v1`, una página por registro, págs. 13–161 | `VERSION_CORPUS` |
+| 📚 Corpus | `v2`, una página por registro: créditos (p. 2), prólogos (8–11) y págs. 13–163 | `VERSION_CORPUS` |
 | ✂️ Fragmentos | `SentenceSplitter` de LlamaIndex, 400 tokens, solapamiento 50 | `CHUNK_TOKENS`, `CHUNK_OVERLAP` |
 | 🧮 Embeddings | `BAAI/bge-m3` con FlagEmbedding, densos, 1024 dimensiones | `EMBEDDINGS` |
 | 🗄️ Vector store | Chroma local o pgvector en Supabase, distancia coseno | `ALMACEN`, `RUTA_CHROMA`, `SUPABASE_DB_URL` |
@@ -166,6 +166,18 @@ párrafo `[Figura] …`.
 
 Cada página lleva sección, actividad, herramienta y etapa, para citar «sección, p. N» y filtrar por
 etapa. Formato en [data/corpus/README.md](data/corpus/README.md).
+
+</details>
+
+<details>
+<summary><b>Créditos, prólogos y elaboración en el índice</b></summary>
+<br>
+
+El corpus `v1` empezaba en la Introducción, así que el asistente no podía decir quién hizo la guía,
+cuándo ni con qué licencia. Desde `v2` también entran los créditos (p. 2), los prólogos (8–11) y
+«¿Cómo elaboramos esta guía?» (162–163). Quedan fuera la portada, los índices, las referencias y la
+contraportada. Los créditos se indexan como una ficha con los datos de la página: con el texto
+extraído, el reranker no relacionaba «¿Quién es el autor de la guía?» con la autoría.
 
 </details>
 
@@ -227,7 +239,7 @@ La consulta sola (sin Docling) necesita únicamente `backend/requirements.txt`.
 ollama pull gemma3:4b
 ```
 
-**3. Construye el índice.** El corpus `v1` ya está en el repositorio, así que basta con indexar:
+**3. Construye el índice.** El corpus `v2` ya está en el repositorio, así que basta con indexar:
 
 ```bash
 .venv/bin/python -m ingesta.indexar
@@ -273,7 +285,7 @@ Por ejemplo, si cambia la guía o la versión de Docling:
 
 `ingesta.extraer` compara el hash del PDF con `data/fuentes/guia.yaml`. `ingesta.corpus --ver 148`
 muestra cómo quedó una página. Un cambio que altere el corpus va en una versión nueva
-(`data/corpus/v2/`), no sobre `v1`.
+(`data/corpus/v3/`), no sobre `v2`.
 
 </details>
 
@@ -332,7 +344,7 @@ embeddings (y con él la dimensión), hace falta una migración nueva.
 
 </details>
 
-Chroma y pgvector devuelven los mismos 20 candidatos, en el mismo orden, en las 47 preguntas;
+Chroma y pgvector devuelven los mismos 20 candidatos, en el mismo orden, en las 52 preguntas;
 pgvector suma ~0,8 s por pregunta por la ida y vuelta a Supabase.
 
 > [!WARNING]
@@ -358,15 +370,26 @@ Métricas, tablas y últimos resultados en [eval/README.md](eval/README.md).
 
 ---
 
-## 💻 Interfaz de demo
+## 💻 Chatbot de prueba
+
+La interfaz de chat (React 19 + Vite + TypeScript) le pregunta a la API de
+[`backend/app/api.py`](backend/app/api.py), que llama a `generar.responder()` y devuelve la respuesta
+con sus fuentes y su confianza. Se necesitan dos terminales, más Ollama corriendo con `gemma3:4b`.
+Para consultar el índice de Supabase, pon `ALMACEN=pgvector` y `SUPABASE_DB_URL` en `.env`.
+
+```bash
+cd backend && ../.venv/bin/uvicorn app.api:app --port 8000
+```
 
 ```bash
 npm install && npm run dev
 ```
 
-> [!NOTE]
-> La interfaz de chat (React 19 + Vite + TypeScript) usa datos de ejemplo de
-> [`src/data.ts`](src/data.ts): todavía no llama al backend.
+Vite reenvía `/ia` a `http://localhost:8000` (cámbialo con `RAG_API_URL`), así que el backend no
+necesita CORS. Las preguntas se atienden de a una y la primera carga los modelos, así que tarda más;
+en un Mac de 8 GB cada respuesta puede tardar minutos. Si Ollama no está disponible, la API responde
+503 con el motivo y la interfaz lo muestra en el chat. `GET /salud` muestra la configuración activa
+y `http://localhost:8000/docs`, el esquema de la API.
 
 ---
 
@@ -374,14 +397,16 @@ npm install && npm run dev
 
 ```text
 .
-├── backend/app/rag/        Consulta: config, modelos, indice, recuperar, prompts, generar
+├── backend/app/
+│   ├── api.py              API HTTP (FastAPI): POST /ia/consultar-guia
+│   └── rag/                Consulta: config, modelos, indice, recuperar, prompts, generar
 ├── ingesta/                PDF → JSON de Docling → corpus → índice vectorial
 ├── data/
-│   ├── corpus/v1/          Corpus versionado, una página por línea (paginas.jsonl)
+│   ├── corpus/v2/          Corpus versionado, una página por línea (paginas.jsonl)
 │   └── fuentes/guia.yaml   Manifiesto y SHA-256 del PDF (el PDF no se versiona)
 ├── eval/                   Preguntas, scripts de comparación y calibración, resultados
 ├── supabase/migrations/    Tabla public.data_guia_fragmentos con pgvector
-└── src/                    Interfaz de chat de demo (React + Vite)
+└── src/                    Chatbot de prueba (React + Vite), conectado a la API
 ```
 
 ---
