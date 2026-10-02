@@ -5,7 +5,8 @@ data/corpus/<VERSION_CORPUS>/paginas.jsonl.
 Cada línea es una página de la guía en Markdown, con los metadatos que
 permiten citar («Personas › Perfil de persona usuaria, p. 148») y filtrar por
 etapa. La sección, la actividad y la herramienta de cada página se deducen de
-los índices de la guía (tablas SECCIONES, ACTIVIDADES y HERRAMIENTAS).
+los índices de la guía (tablas SECCIONES, ACTIVIDADES y HERRAMIENTAS de
+app/rag/guia.py).
 
     python -m ingesta.corpus
     python -m ingesta.corpus --ver 148   # muestra cómo quedó una página
@@ -25,6 +26,7 @@ from docling_core.types.doc.document import (DEFAULT_EXPORT_LABELS, ContentLayer
 
 from ingesta.extraer import RAIZ, SALIDA as ENTRADA
 from app.rag import config
+from app.rag.guia import ACTIVIDADES, ETAPAS, HERRAMIENTAS, SECCIONES
 
 # Páginas que entran al índice: los créditos (2), los prólogos (8-11), de la
 # Introducción al Glosario (13-161) y «¿Cómo elaboramos esta guía?» (162-163).
@@ -61,73 +63,11 @@ Lorena Torres, María Eliana Devia, Myriam Meyer, Nicolás Galvez, Octavio Corte
 Pablo Bórquez, Rodrigo Silva, Sebastián Altimira, Tomás Dintrans y Víctor Toledo.
 - Cómo citarla: Laboratorio de Gobierno, Gobierno de Chile y Universidad Tecnológica Metropolitana (2025)."""
 
-# --------------------------------------------------------------------------
-# Estructura de la guía, tomada de sus índices (págs. 4 a 6).
-# Cada tupla es (página donde empieza, nombre). Si cambia la guía, hay que
-# revisar estas tablas.
-# --------------------------------------------------------------------------
-SECCIONES = [
-    (1, "Créditos de la guía"),
-    (8, "Prólogos"),
-    (10, "Innovación pública y democracia"),
-    (13, "Introducción"),
-    (23, "Lo primero: actividades base para la gestión de la experiencia usuaria"),
-    (27, "Propósitos"),
-    (28, "Propósito 1: Comprender la experiencia actual de las personas usuarias"),
-    (32, "Propósito 2: Incorporar perspectiva usuaria al quehacer institucional"),
-    (36, "Propósito 3: Mejorar la satisfacción con un servicio"),
-    (40, "Propósito 4: Mejorar la colaboración interna para la experiencia usuaria"),
-    (44, "Propósito 5: Diseñar e implementar un nuevo servicio"),
-    (51, "Actividades y herramientas"),
-    (158, "Glosario"),
-    (162, "¿Cómo elaboramos esta guía?"),
-    (164, "Referencias"),
-]
-
-ACTIVIDADES = [
-    (54, "Actores"), (58, "Adopción"), (64, "Claves perceptuales"),
-    (68, "Competencias"), (72, "Comunicación"), (76, "Contexto institucional"),
-    (80, "Creación de valor"), (86, "Ecosistema de canales"), (90, "Estándares"),
-    (94, "Experiencia modelo"), (100, "Habilitación y Expectativas"),
-    (104, "Interacciones"), (108, "Investigación"), (112, "Marco Institucional"),
-    (116, "Medición"), (120, "Modelo operativo"), (126, "Momentos críticos"),
-    (132, "Necesidades"), (140, "Personas"), (150, "Sensibilización"),
-    (154, "Vinculación"),
-]
-
-HERRAMIENTAS = sorted([
-    (152, "Ficha de actividades de sensibilización"),
-    (88, "Ficha de caracterización de canales"),
-    (114, "Ficha de caracterización institucional"),
-    (70, "Ficha de competencias para la experiencia"),
-    (78, "Ficha de contexto institucional"),
-    (92, "Ficha de estándares de servicio"),
-    (60, "Ficha de intervenciones para la adopción"),
-    (66, "Lista de claves perceptuales"),
-    (56, "Mapa de actores del ecosistema del servicio"),
-    (82, "Mapa de co-producción valor"),
-    (102, "Mapa de expectativas"),
-    (128, "Mapa de momentos críticos"),
-    (142, "Mapa de perfiles de personas usuarias"),
-    (134, "Mapa del problema completo"),
-    (156, "Matriz de vinculación entre necesidades y servicios"),
-    (148, "Perfil de persona usuaria"),
-    (136, "Pilares del servicio"),
-    (74, "Plan de comunicaciones del servicio"),
-    (118, "Plan de evaluación de estándares de servicio"),
-    (110, "Plan de investigación de experiencia usuaria"),
-    (122, "Plano del servicio"),
-    (106, "Viaje de la persona usuaria"),
-    (96, "Viaje ideal de la persona usuaria"),
-])
-
-# Etapas de la plataforma SSP-UXLab (Propósito 1) -> actividad de la guía que
-# las respalda. Las páginas de esas actividades llevan el número de etapa, que
-# permite filtrar la recuperación; el resto queda sin etapa.
-ETAPAS = {
-    1: "Investigación", 2: "Personas", 3: "Habilitación y Expectativas",
-    4: "Necesidades", 5: "Vinculación", 6: "Medición", 7: "Momentos críticos",
-}
+# Estructura de la guía (SECCIONES, ACTIVIDADES, HERRAMIENTAS) y etapas de la
+# plataforma: están en backend/app/rag/guia.py, que comparte la consulta. ETAPAS
+# asocia cada etapa del Propósito 1 de SSP-UXLab a la actividad de la guía que
+# la respalda; las páginas de esas actividades llevan el número de etapa, que
+# permite filtrar la recuperación, y el resto queda sin etapa.
 
 
 def _ultimo_que_empieza_antes(tabla, pagina):

@@ -254,7 +254,7 @@ cd backend && ../.venv/bin/python -m app.rag.generar "¿Qué es un mapa de momen
 | Opción | Qué hace |
 | --- | --- |
 | `--json` | Muestra la respuesta con la forma del contrato |
-| `--etapa N` | Le indica al LLM la etapa del proyecto (1 a 7) desde la que se pregunta |
+| `--etapa N` | Le da al LLM el contexto de la etapa del proyecto (1 a 7) desde la que se pregunta: actividad, objetivo y herramientas ([`guia.py`](backend/app/rag/guia.py)). Se ve con `python -m app.rag.prompts --etapa N` |
 | `--filtrar-etapa` | Busca solo en la actividad de esa etapa |
 
 Para ver solo la recuperación, sin LLM:
@@ -399,7 +399,7 @@ y `http://localhost:8000/docs`, el esquema de la API.
 .
 ├── backend/app/
 │   ├── api.py              API HTTP (FastAPI): POST /ia/consultar-guia
-│   └── rag/                Consulta: config, modelos, indice, recuperar, prompts, generar
+│   └── rag/                Consulta: config, modelos, indice, recuperar, guia, prompts, generar
 ├── ingesta/                PDF → JSON de Docling → corpus → índice vectorial
 ├── data/
 │   ├── corpus/v2/          Corpus versionado, una página por línea (paginas.jsonl)
