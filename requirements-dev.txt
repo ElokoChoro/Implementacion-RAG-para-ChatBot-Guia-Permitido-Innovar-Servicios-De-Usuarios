@@ -1,0 +1,7 @@
+# Desarrollo: tests y linter, sobre el módulo de consulta. Python 3.12.
+#   .venv/bin/pip install -r requirements-dev.txt
+-r backend/requirements.txt
+pytest>=9.1,<10
+# TestClient de FastAPI (Starlette); con httpx solo, avisa que está obsoleto
+httpx2>=2.13,<3
+ruff>=0.16,<0.17

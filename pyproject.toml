@@ -1,0 +1,26 @@
+# Configuración de las herramientas de Python (ruff y pytest). Las dependencias están en
+# backend/requirements.txt, ingesta/requirements.txt y requirements-dev.txt.
+
+[tool.ruff]
+target-version = "py312"
+# 120 y no 88: los docstrings y comentarios del repo explican cada valor en una línea.
+line-length = 120
+# backend/ para que `app` cuente como paquete propio al ordenar imports.
+src = ["backend", "."]
+
+[tool.ruff.lint]
+# E/W: estilo · F: errores (nombres sin definir, imports sin uso) · I: orden de imports
+# B: errores frecuentes (zip sin strict, closures en ciclos) · UP: sintaxis de Python 3.12
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# El texto del prompt va en líneas largas a propósito: partirlas cambiaría el prompt.
+"backend/app/rag/prompts.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.pytest.ini_options]
+# Los tests importan `app` igual que cuando se corre desde backend/.
+pythonpath = ["backend"]
+testpaths = ["backend/tests"]

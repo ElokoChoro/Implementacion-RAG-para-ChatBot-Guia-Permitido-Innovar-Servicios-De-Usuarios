@@ -21,12 +21,18 @@ import json
 import re
 import sys
 
-from docling_core.types.doc.document import (DEFAULT_EXPORT_LABELS, ContentLayer, DocItemLabel,
-                                             DoclingDocument, PictureItem, TextItem)
+from docling_core.types.doc.document import (
+    DEFAULT_EXPORT_LABELS,
+    ContentLayer,
+    DocItemLabel,
+    DoclingDocument,
+    PictureItem,
+    TextItem,
+)
 
-from ingesta.extraer import RAIZ, SALIDA as ENTRADA
 from app.rag import config
 from app.rag.guia import ACTIVIDADES, ETAPAS, HERRAMIENTAS, SECCIONES
+from ingesta.extraer import RAIZ, SALIDA as ENTRADA
 
 # Páginas que entran al índice: los créditos (2), los prólogos (8-11), de la
 # Introducción al Glosario (13-161) y «¿Cómo elaboramos esta guía?» (162-163).

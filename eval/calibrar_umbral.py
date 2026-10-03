@@ -30,6 +30,7 @@ import json
 import os
 import sys
 import time
+from itertools import pairwise
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -66,6 +67,16 @@ def _pct(n: int, total: int) -> float:
     return round(100 * n / total, 1) if total else 0.0
 
 
+def _pasa(f: dict, umbral: float) -> bool:
+    """El mejor fragmento supera el umbral, así que la pregunta llega al LLM."""
+    return f["puntajes"][0] >= umbral
+
+
+def _recupera(f: dict, umbral: float) -> bool:
+    """La sección esperada está entre los fragmentos que superan el umbral."""
+    return f["pos_seccion"] is not None and f["puntajes"][f["pos_seccion"] - 1] >= umbral
+
+
 def barrer(filas: list[dict]) -> list[dict]:
     """Métricas de rechazo y recuperación para cada umbral de UMBRALES."""
     respondibles = [f for f in filas if f["categoria"] == "respondible"]
@@ -73,19 +84,12 @@ def barrer(filas: list[dict]) -> list[dict]:
     ambiguas = [f for f in filas if f["categoria"] == "ambigua"]
     tabla = []
     for u in UMBRALES:
-        def pasa(f):
-            return f["puntajes"][0] >= u
-
-        def recupera(f):
-            # La sección esperada está entre los fragmentos que superan el umbral
-            return f["pos_seccion"] is not None and f["puntajes"][f["pos_seccion"] - 1] >= u
-
         tabla.append({
             "umbral": u,
-            "rechazo_fuera": _pct(sum(not pasa(f) for f in fuera), len(fuera)),
-            "falsos_no_encuentro": _pct(sum(not pasa(f) for f in respondibles), len(respondibles)),
-            "recall": _pct(sum(recupera(f) for f in respondibles), len(respondibles)),
-            "ambiguas_rechazadas": sum(not pasa(f) for f in ambiguas),
+            "rechazo_fuera": _pct(sum(not _pasa(f, u) for f in fuera), len(fuera)),
+            "falsos_no_encuentro": _pct(sum(not _pasa(f, u) for f in respondibles), len(respondibles)),
+            "recall": _pct(sum(_recupera(f, u) for f in respondibles), len(respondibles)),
+            "ambiguas_rechazadas": sum(not _pasa(f, u) for f in ambiguas),
         })
     return tabla
 
@@ -94,7 +98,7 @@ def franjas(filas: list[dict]) -> list[dict]:
     """Por franja del mejor puntaje: cuántas respondibles caen ahí y cuántas tienen la sección primero."""
     respondibles = [f for f in filas if f["categoria"] == "respondible"]
     salida = []
-    for lo, hi in zip(FRANJAS, FRANJAS[1:]):
+    for lo, hi in pairwise(FRANJAS):
         en = [f for f in respondibles if lo <= f["puntajes"][0] < hi]
         salida.append({"desde": lo, "hasta": min(hi, 1.0), "respondibles": len(en),
                        "seccion_primera": _pct(sum(f["pos_seccion"] == 1 for f in en), len(en)),
@@ -103,7 +107,7 @@ def franjas(filas: list[dict]) -> list[dict]:
 
 
 def main():
-    preguntas = [json.loads(l) for l in SET.read_text(encoding="utf-8").splitlines() if l.strip()]
+    preguntas = [json.loads(linea) for linea in SET.read_text(encoding="utf-8").splitlines() if linea.strip()]
     print(f"{len(preguntas)} preguntas · {config.coleccion()} · reranker {config.RERANKER}", flush=True)
     t0 = time.time()
     filas = puntuar(preguntas)
@@ -118,7 +122,8 @@ def main():
               f"  {t['recall']:>6}  {t['ambiguas_rechazadas']:>19}")
     print("\nmejor puntaje   respondibles  sección primero (%)  fuera")
     for f in franjas(filas):
-        print(f"{f['desde']:.1f}–{f['hasta']:.1f}  {f['respondibles']:>17}  {f['seccion_primera']:>19}  {f['fuera']:>5}")
+        print(f"{f['desde']:.1f}–{f['hasta']:.1f}  {f['respondibles']:>17}  "
+              f"{f['seccion_primera']:>19}  {f['fuera']:>5}")
     menor = min((f for f in filas if f["categoria"] == "respondible"), key=lambda f: f["puntajes"][0])
     mayor = max((f for f in filas if f["categoria"] == "fuera"), key=lambda f: f["puntajes"][0])
     print(f"\nRespondible con el menor puntaje: {menor['id']} {menor['puntajes'][0]:.3f}")
