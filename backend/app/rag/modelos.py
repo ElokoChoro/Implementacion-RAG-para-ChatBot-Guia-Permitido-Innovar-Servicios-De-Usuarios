@@ -120,7 +120,7 @@ class ReordenadorBGE(BaseNodePostprocessor):
         puntajes = self._modelo.compute_score(pares, normalize=True)
         if isinstance(puntajes, float):  # con un solo par, FlagReranker devuelve un número
             puntajes = [puntajes]
-        for n, puntaje in zip(nodes, puntajes):
+        for n, puntaje in zip(nodes, puntajes, strict=True):
             n.score = float(puntaje)
         return sorted(nodes, key=lambda n: n.score, reverse=True)[: self.top_n]
 

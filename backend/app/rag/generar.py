@@ -32,8 +32,7 @@ from ollama import ResponseError
 
 from app.rag import config
 from app.rag.modelos import llm
-from app.rag.prompts import (MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO,
-                             VERSION_PROMPT, texto_etapa)
+from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, VERSION_PROMPT, texto_etapa
 from app.rag.recuperar import recuperar
 
 

@@ -393,20 +393,41 @@ y `http://localhost:8000/docs`, el esquema de la API.
 
 ---
 
+## ✅ Tests y CI
+
+Los tests de [`backend/tests/`](backend/tests/) prueban lo que decide el backend sin cargar modelos
+ni llamar a Ollama: el umbral, la confianza, las fuentes, la detección del rechazo del LLM, los
+campos del contrato y la validación de la API. Corren en segundos.
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest
+.venv/bin/ruff check
+```
+
+No miden la calidad de las respuestas: eso lo hacen los scripts de [`eval/`](eval/). El
+[CI](.github/workflows/ci.yml) corre `ruff check` y `pytest` para el backend, y `npm run lint` y
+`npm run build` para el chatbot, en cada PR y en cada push a `main`. Dependabot propone una vez al
+mes las actualizaciones de npm, pip y GitHub Actions.
+
+---
+
 ## 🗂️ Estructura
 
 ```text
 .
-├── backend/app/
-│   ├── api.py              API HTTP (FastAPI): POST /ia/consultar-guia
-│   └── rag/                Consulta: config, modelos, indice, recuperar, prompts, generar
+├── backend/
+│   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia
+│   ├── app/rag/            Consulta: config, modelos, indice, recuperar, prompts, generar
+│   └── tests/              Tests con pytest, sin modelos ni Ollama
 ├── ingesta/                PDF → JSON de Docling → corpus → índice vectorial
 ├── data/
 │   ├── corpus/v2/          Corpus versionado, una página por línea (paginas.jsonl)
 │   └── fuentes/guia.yaml   Manifiesto y SHA-256 del PDF (el PDF no se versiona)
 ├── eval/                   Preguntas, scripts de comparación y calibración, resultados
 ├── supabase/migrations/    Tabla public.data_guia_fragmentos con pgvector
-└── src/                    Chatbot de prueba (React + Vite), conectado a la API
+├── src/                    Chatbot de prueba (React + Vite), conectado a la API
+└── .github/                CI (lint, tipos, build y tests) y Dependabot
 ```
 
 ---
