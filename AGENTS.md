@@ -14,12 +14,14 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 | --- | --- |
 | `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `prompts`, `generar` |
 | `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia` y `GET /salud`; atiende las preguntas de a una |
+| `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
 | `data/corpus/v2/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v1/` queda como referencia |
 | `data/fuentes/guia.yaml` | Manifiesto y SHA-256 del PDF (el PDF no se versiona) |
 | `eval/` | Set de preguntas, scripts de comparación y calibración, resultados en `eval/resultados/` |
 | `supabase/migrations/` | Tabla `public.data_guia_fragmentos` con pgvector |
 | `src/` | Chatbot de prueba (React 19 + Vite + TypeScript). Llama a la API mediante el proxy de Vite (`/ia` → puerto 8000) |
+| `.github/` | CI (`ruff`, `pytest`, `oxlint`, `tsc` y `vite build` en cada PR) y Dependabot |
 | `Modelfile`, `docs/` | Prompt inicial para Ollama. **No es el prompt vigente**: el que usa el backend está en `backend/app/rag/prompts.py` |
 
 Pipeline: Docling `standard` sin OCR → `SentenceSplitter` 400/50 → `BAAI/bge-m3` → Chroma o
@@ -33,6 +35,9 @@ Python 3.12 con el entorno en `.venv/`. **Ojo con el directorio**: la consulta s
 
 ```bash
 python3.12 -m venv .venv && .venv/bin/pip install -r ingesta/requirements.txt   # ingesta + consulta
+.venv/bin/pip install -r requirements-dev.txt               # pytest y ruff
+.venv/bin/python -m pytest                                 # tests, en segundos (config en pyproject.toml)
+.venv/bin/ruff check                                       # lint de Python
 .venv/bin/python -m ingesta.indexar                        # reconstruye el índice (Chroma)
 ALMACEN=pgvector .venv/bin/python -m ingesta.indexar --desde-chroma   # copia el índice a Supabase
 .venv/bin/python -m ingesta.corpus --ver 148               # muestra cómo quedó una página
@@ -52,9 +57,11 @@ npm run build    # tsc -b + vite build
 npm run lint     # oxlint
 ```
 
-No hay suite de tests. Para verificar un cambio del RAG: prueba rápida con `app.rag.recuperar` o
-`app.rag.generar` y, si toca recuperación, umbral o prompt, el script de `eval/` que corresponda.
-Para el frontend: `npm run build` y `npm run lint` sin errores.
+Antes de abrir un PR: `ruff check`, `pytest`, `npm run lint` y `npm run build` sin errores; el CI
+corre lo mismo. Los tests reemplazan la recuperación y el LLM, así que no miden la calidad de las
+respuestas: si el cambio toca recuperación, umbral o prompt, prueba también con `app.rag.recuperar`
+o `app.rag.generar` y corre el script de `eval/` que corresponda. Una regla nueva del backend que
+no dependa de los modelos (un corte, un campo, una validación) lleva su test en `backend/tests/`.
 
 Requisitos de los modelos: la primera ejecución descarga bge-m3 y el reranker desde Hugging Face
 (~2,3 GB cada uno). La generación necesita Ollama corriendo con `ollama pull gemma3:4b`. El equipo
@@ -78,7 +85,8 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   **inicio** de la respuesta: si cambias esa frase o la regla del caso C, revisa los dos archivos.
 - **Confianza y fuentes** salen del puntaje del reranker y de los metadatos de los fragmentos, nunca
   del texto del LLM. `Respuesta` en `generar.py` tiene la forma del contrato `POST /ia/consultar-guia`:
-  no cambies sus campos sin acordarlo.
+  no cambies sus campos sin acordarlo. `test_generar.py` compara sus campos con `RespuestaGuia`
+  de `src/lib/rag.ts`; si el cambio se acuerda, actualiza los tres.
 - **Corpus**: `data/corpus/v2/paginas.jsonl` no se edita a mano; se regenera con `ingesta.corpus`.
   Un cambio de extracción o de metadatos que altere el corpus va en una versión nueva
   (`data/corpus/v3/`), no sobre `v2`. Los créditos (p. 2) se indexan como `FICHA_CREDITOS`
@@ -113,8 +121,9 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
 - **Comentarios**: explican el motivo de cada valor o decisión con el dato que lo respalda (ver
   `config.py`). El motivo se escribe en el propio repo (docstring, README, `eval/README.md`): no
   cites documentos externos ni IDs de gestión (`ADR-NN`, `T-NNN`, `EXP-NN`, `R-NN`, `RF-NN`).
-- **TypeScript**: componentes funcionales, sin punto y coma, comillas simples, tipos en
-  `src/types.ts`.
+- **Python**: líneas de hasta 120 caracteres; ruff ordena los imports (`ruff check --fix`).
+- **TypeScript**: modo `strict`, componentes funcionales, sin punto y coma, comillas simples, tipos
+  en `src/types.ts`.
 
 ## Git
 

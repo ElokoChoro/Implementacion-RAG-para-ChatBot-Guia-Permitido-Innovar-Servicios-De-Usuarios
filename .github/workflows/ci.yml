@@ -1,0 +1,51 @@
+# Revisa cada PR y cada push a main: lint, tipos y build del chatbot; lint y tests del backend.
+# No descarga modelos ni necesita Ollama: los tests reemplazan la recuperación y el LLM.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Un push nuevo a la misma rama cancela la revisión anterior.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Chatbot (lint y build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  backend:
+    name: Backend (ruff y tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            backend/requirements.txt
+      # FlagEmbedding depende de torch. La rueda de CPU pesa una fracción de la de CUDA, que es la
+      # que pip baja por defecto en Linux, y alcanza: los tests no cargan modelos.
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check --output-format github
+      - run: python -m pytest
