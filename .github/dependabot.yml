@@ -1,0 +1,29 @@
+# Actualizaciones de dependencias, una vez al mes y agrupadas para no llenar de PR el repo.
+# Un PR de Dependabot que toque llama-index, FlagEmbedding, Docling o chromadb se revisa con
+# app.rag.recuperar y el script de eval/ que corresponda antes de integrarlo: los tests no
+# miden la calidad de las respuestas.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      npm:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directories: [/, /backend, /ingesta]
+    schedule:
+      interval: monthly
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

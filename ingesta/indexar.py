@@ -74,7 +74,7 @@ def fragmentos_de_chroma() -> list[BaseNode]:
                  "Indexa primero en Chroma (python -m ingesta.indexar) o quita --desde-chroma.")
     datos = cliente.get_collection(config.coleccion()).get(include=["embeddings", "metadatas", "documents"])
     nodos = []
-    for vector, meta, texto in zip(datos["embeddings"], datos["metadatas"], datos["documents"]):
+    for vector, meta, texto in zip(datos["embeddings"], datos["metadatas"], datos["documents"], strict=True):
         nodo = metadata_dict_to_node(meta, text=texto)
         nodo.embedding = [float(x) for x in vector]
         # Las colecciones creadas antes de existir «indice» no lo traen

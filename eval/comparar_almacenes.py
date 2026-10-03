@@ -50,7 +50,8 @@ def distancia(almacen: str, puntaje: float) -> float:
     return -math.log(puntaje) if almacen == "chroma" else 1 - puntaje
 
 
-def recuperar_en(almacen: str, preguntas: list[dict]) -> tuple[list[list[str]], dict[str, dict], dict[str, list[float]], float]:
+def recuperar_en(almacen: str,
+                 preguntas: list[dict]) -> tuple[list[list[str]], dict[str, dict], dict[str, list[float]], float]:
     """Ids y distancias de los CANDIDATOS de cada pregunta, y los metadatos de cada id."""
     config.ALMACEN = almacen
     ids, metas, distancias = [], {}, {}
@@ -82,18 +83,18 @@ def main():
               f"recall@{CANDIDATOS} {res[almacen][f'recall@{CANDIDATOS}']} · {seg:.2f} s/pregunta", flush=True)
 
     a, b = (res[x]["ids"] for x in ALMACENES)
-    iguales_k = [x[:K] == y[:K] for x, y in zip(a, b)]
-    iguales_cand = [set(x) == set(y) for x, y in zip(a, b)]
+    iguales_k = [x[:K] == y[:K] for x, y in zip(a, b, strict=True)]
+    iguales_cand = [set(x) == set(y) for x, y in zip(a, b, strict=True)]
     dif = 0.0
-    for q, x, y in zip(preguntas, a, b):
-        pa = dict(zip(x, res["chroma"]["distancias"][q["id"]]))
-        pb = dict(zip(y, res["pgvector"]["distancias"][q["id"]]))
+    for q, x, y in zip(preguntas, a, b, strict=True):
+        pa = dict(zip(x, res["chroma"]["distancias"][q["id"]], strict=True))
+        pb = dict(zip(y, res["pgvector"]["distancias"][q["id"]], strict=True))
         dif = max([dif, *(abs(pa[i] - pb[i]) for i in pa.keys() & pb.keys())])
     resumen = {
         f"coinciden_top{K}": round(100 * sum(iguales_k) / len(preguntas), 1),
         "coinciden_candidatos": round(100 * sum(iguales_cand) / len(preguntas), 1),
         "dif_max_distancia": round(dif, 6),
-        "distintas": [q["id"] for q, ok in zip(preguntas, iguales_k) if not ok],
+        "distintas": [q["id"] for q, ok in zip(preguntas, iguales_k, strict=True) if not ok],
     }
     print(f"\nMismos top {K}: {resumen[f'coinciden_top{K}']} % · mismos candidatos: "
           f"{resumen['coinciden_candidatos']} % · diferencia máxima de distancia: {dif:.6f}")

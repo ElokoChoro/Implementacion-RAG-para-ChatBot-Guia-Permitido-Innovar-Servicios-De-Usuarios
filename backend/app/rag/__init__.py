@@ -6,6 +6,7 @@ los servicios públicos desde la experiencia usuaria?».
     modelos    embeddings (bge-m3), reranker (bge-reranker-v2-m3) y LLM (Ollama), locales
     indice     índice vectorial en Chroma (local) o pgvector (Supabase)
     recuperar  búsqueda de fragmentos para una pregunta
+    guia       estructura de la guía y etapas de la plataforma, como datos
     prompts    prompt del asistente y frase de rechazo
     generar    respuesta con citas y confianza; umbral de rechazo
 """
