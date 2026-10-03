@@ -43,8 +43,12 @@ En pgvector hay una sola tabla, que se recarga completa al indexar.
 Las variables también se leen del archivo .env de la raíz del repositorio (ver
 .env.example); las que ya están definidas en el entorno tienen prioridad.
 """
+from __future__ import annotations
+
 import os
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -52,7 +56,7 @@ RAIZ = Path(__file__).resolve().parents[3]  # raíz del repositorio
 load_dotenv(RAIZ / ".env")
 
 
-def _env(nombre: str, defecto, tipo=str):
+def _env(nombre: str, defecto: Any, tipo: Callable[[str], Any] = str) -> Any:
     """Lee una variable de entorno y la convierte a `tipo`; si falta o está vacía, usa `defecto`."""
     valor = os.getenv(nombre)
     if valor in (None, ""):

@@ -29,8 +29,8 @@ import os
 import sys
 import time
 import unicodedata
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import requests
@@ -63,7 +63,7 @@ def cargar_fragmentos() -> tuple[list[str], list[dict]]:
 
 def cargar_preguntas() -> list[dict]:
     """Preguntas del set con sección esperada (las demás no tienen nada que recuperar)."""
-    preguntas = [json.loads(l) for l in SET.read_text(encoding="utf-8").splitlines() if l.strip()]
+    preguntas = [json.loads(linea) for linea in SET.read_text(encoding="utf-8").splitlines() if linea.strip()]
     return [q for q in preguntas if q["seccion_fuente"]]
 
 
@@ -91,13 +91,14 @@ def acierta_pagina(pregunta: dict, fragmentos: list[dict]) -> bool:
 def metricas(preguntas: list[dict], rankings: list[list[int]], metas: list[dict], k: int) -> dict:
     """Recall por sección, recall por página y MRR mirando los primeros `k` de cada ranking."""
     tops = [[metas[i] for i in r[:k]] for r in rankings]
-    posiciones = [posicion_seccion(q, t) for q, t in zip(preguntas, tops)]
+    posiciones = [posicion_seccion(q, t) for q, t in zip(preguntas, tops, strict=True)]
     n = len(preguntas)
+    aciertos_pagina = sum(acierta_pagina(q, t) for q, t in zip(preguntas, tops, strict=True))
     return {
         f"recall@{k}": round(100 * sum(p is not None for p in posiciones) / n, 1),
-        f"recall_pagina@{k}": round(100 * sum(acierta_pagina(q, t) for q, t in zip(preguntas, tops)) / n, 1),
+        f"recall_pagina@{k}": round(100 * aciertos_pagina / n, 1),
         f"mrr@{k}": round(sum(1 / p if p else 0 for p in posiciones) / n, 3),
-        "fallos": [q["id"] for q, p in zip(preguntas, posiciones) if p is None],
+        "fallos": [q["id"] for q, p in zip(preguntas, posiciones, strict=True) if p is None],
     }
 
 
@@ -171,7 +172,7 @@ def reordenar(preguntas: list[dict], rankings: list[list[int]], textos: list[str
     from app.rag.modelos import reordenador
     modelo = reordenador()._modelo
     nuevos = []
-    for q, candidatos in zip(preguntas, rankings):
+    for q, candidatos in zip(preguntas, rankings, strict=True):
         puntajes = modelo.compute_score([(q["pregunta"], textos[i]) for i in candidatos], normalize=True)
         nuevos.append([candidatos[j] for j in np.argsort(-np.array(puntajes))])
     return nuevos
