@@ -14,7 +14,7 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 | --- | --- |
 | `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar` |
 | `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia` y `GET /salud`; atiende las preguntas de a una |
-| `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, sin modelos ni Ollama |
+| `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
 | `data/corpus/v2/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v1/` queda como referencia |
 | `data/fuentes/guia.yaml` | Manifiesto y SHA-256 del PDF (el PDF no se versiona) |
@@ -81,7 +81,8 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   `supabase/migrations/` con la dimensión del modelo.
 - **Cambiar `RERANKER`** → recalibrar `UMBRAL`, `CONFIANZA_MEDIA` y `CONFIANZA_ALTA` con
   `eval/calibrar_umbral.py`: los puntajes no son comparables entre modelos.
-- **Prompt** (`prompts.py`): todo cambio sube `VERSION_PROMPT` y se anota en la lista de versiones
+- **Prompt** (`prompts.py`, y los datos de `guia.py` que llegan al LLM: nombre, actividad y objetivo
+  de cada etapa, nombre del propósito y nombres de `HERRAMIENTAS`): todo cambio sube `VERSION_PROMPT` y se anota en la lista de versiones
   del docstring. `generar.py` detecta el rechazo del LLM buscando `MENSAJE_NO_ENCONTRADA` al
   **inicio** de la respuesta: si cambias esa frase o la regla del caso C, revisa los dos archivos.
 - **Confianza y fuentes** salen del puntaje del reranker y de los metadatos de los fragmentos, nunca
@@ -120,11 +121,11 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
 - **Python**: `from __future__ import annotations`, type hints, docstrings de módulo que explican
   qué hace el paso, por qué se eligió así y cómo probarlo desde la terminal. Cada script tiene una
   CLI con `argparse` y `description=__doc__`. Los errores para la persona usuaria dicen qué hacer
-  («Inicia Ollama (ollama serve).»).
+  («Inicia Ollama (ollama serve).»). Líneas de hasta 120 caracteres; ruff ordena los imports
+  (`ruff check --fix`).
 - **Comentarios**: explican el motivo de cada valor o decisión con el dato que lo respalda (ver
   `config.py`). El motivo se escribe en el propio repo (docstring, README, `eval/README.md`): no
   cites documentos externos ni IDs de gestión (`ADR-NN`, `T-NNN`, `EXP-NN`, `R-NN`, `RF-NN`).
-- **Python**: líneas de hasta 120 caracteres; ruff ordena los imports (`ruff check --fix`).
 - **TypeScript**: modo `strict`, componentes funcionales, sin punto y coma, comillas simples, tipos
   en `src/types.ts`.
 

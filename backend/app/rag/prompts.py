@@ -16,8 +16,12 @@ Versiones:
       nombre: propósito, actividad de la guía, objetivo y herramientas, desde
       guia.py, para que el caso B se resuelva con la herramienta de la etapa.
       Sin etapa, el mensaje queda igual que en v3 («no indicada»). SISTEMA no
-      cambia. Ojo: las preguntas ambiguas («¿cómo hago el mapa?») suelen quedar
-      bajo el UMBRAL aun filtrando por etapa, y entonces no llegan al LLM.
+      cambia. Ojo: con el UMBRAL 0,5, «¿cómo hago el mapa?», «¿cómo se completa
+      el plan?» y «¿cómo se llena la ficha?» quedan bajo el umbral con y sin
+      etapa, aun filtrando por ella (0,005 a 0,258), y no llegan al LLM. Con
+      UMBRAL=0 y filtro (etapas 2, 3, 6 y 7), v4 y v3 eligen la herramienta de
+      la etapa en los 4 casos y fallan las citas en 2: sin diferencia clara con
+      n=4 (gemma3:4b, 2026-10-02).
 
 Para ver el contexto que recibe el LLM en cada etapa, desde backend/:
     python -m app.rag.prompts --etapa 7
@@ -97,7 +101,7 @@ def main():
     p = guia.PROPOSITOS.get(args.proposito)
     if p is None:
         raise SystemExit(f"No hay datos del Propósito {args.proposito}. Propósitos: {sorted(guia.PROPOSITOS)}.")
-    etapas = [p.etapa(args.etapa)] if args.etapa else list(p.etapas)
+    etapas = [p.etapa(args.etapa)] if args.etapa is not None else list(p.etapas)
     if etapas == [None]:
         raise SystemExit(f"El Propósito {p.numero} no tiene etapa {args.etapa}. "
                          f"Etapas: {[e.numero for e in p.etapas]}.")

@@ -397,7 +397,8 @@ y `http://localhost:8000/docs`, el esquema de la API.
 
 Los tests de [`backend/tests/`](backend/tests/) prueban lo que decide el backend sin cargar modelos
 ni llamar a Ollama: el umbral, la confianza, las fuentes, la detección del rechazo del LLM, los
-campos del contrato y la validación de la API. Corren en segundos.
+campos del contrato, la validación de la API y las etapas con el contexto que recibe el LLM
+(contrastadas con el corpus `v2`). Corren en segundos.
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt

@@ -6,11 +6,13 @@ decide el backend con los puntajes del reranker, no la calidad de la respuesta.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from conftest import fragmento
 
 from app.rag import generar
-from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SUGERENCIA, texto_etapa
+from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
 
 # Campos de `RespuestaGuia` en src/lib/rag.ts: el contrato de POST /ia/consultar-guia.
 CAMPOS_CONTRATO = {"resultado", "encontrada", "confianza", "fuentes", "modelo", "version_prompt",
@@ -133,3 +135,33 @@ def test_texto_etapa() -> None:
     # Con etapa, empieza con el número y el nombre, seguidos del contexto (test_guia.py).
     assert texto_etapa(7).startswith("7 Momentos críticos\n")
     assert texto_etapa(9) == "9"
+
+
+class _LLMFalso:
+    """Reemplaza al cliente de Ollama y guarda los mensajes que recibe."""
+
+    def __init__(self) -> None:
+        self.mensajes: list = []
+
+    def chat(self, mensajes: list) -> SimpleNamespace:
+        self.mensajes = mensajes
+        return SimpleNamespace(message=SimpleNamespace(content=" Respuesta. "))
+
+
+@pytest.mark.parametrize("etapa", [7, None])
+def test_mensajes_que_recibe_el_llm(monkeypatch: pytest.MonkeyPatch, etapa: int | None) -> None:
+    # Pasa por _generar real: SISTEMA en el mensaje de sistema y la etapa en el de usuario.
+    falso = _LLMFalso()
+    monkeypatch.setattr(generar, "llm", lambda: falso)
+    nodos = [fragmento(0.8)]
+
+    assert generar._generar("¿Cómo hago el mapa?", etapa, nodos) == "Respuesta."
+
+    sistema, usuario = falso.mensajes
+    assert sistema.content == SISTEMA
+    assert usuario.content == USUARIO.format(etapa=texto_etapa(etapa), contexto=generar._contexto(nodos),
+                                             pregunta="¿Cómo hago el mapa?")
+    if etapa:
+        assert "Mapa de momentos críticos" in usuario.content
+    else:  # sin etapa, igual que en el prompt v3
+        assert usuario.content.startswith("Etapa actual del proyecto (si se conoce): no indicada\n\n<contexto>\n")

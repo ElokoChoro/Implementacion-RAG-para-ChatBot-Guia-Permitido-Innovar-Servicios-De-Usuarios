@@ -10,10 +10,19 @@ Cada propósito de la guía es una secuencia de etapas, y cada etapa se apoya en
 una actividad de la guía. Las páginas y las herramientas de la etapa se deducen
 de las tablas ACTIVIDADES y HERRAMIENTAS; a mano solo van el nombre de la etapa
 en la plataforma, la actividad y el objetivo, que sale de la propia guía (con
-la página donde se puede verificar). Para sumar otro propósito basta con
-agregarlo a PROPOSITOS.
+la página donde se puede verificar). El nombre, la actividad y el objetivo de
+cada etapa, y los nombres de las herramientas, llegan al LLM
+(prompts.texto_etapa): cambiarlos cambia el prompt y obliga a subir
+VERSION_PROMPT en prompts.py.
 
-    python -m app.rag.prompts --etapa 7   # contexto que recibe el LLM en la etapa 7
+Los datos de otro propósito se agregan a PROPOSITOS sin cambiar este módulo,
+pero hoy la consulta usa solo el Propósito 1: para que un propósito nuevo llegue
+al LLM hay que pasarlo por responder() y _generar (generar.py) y por el contrato
+de POST /ia/consultar-guia (api.py). El corpus sigue etiquetado con las etapas
+del Propósito 1 (ver ETAPAS).
+
+Para ver el contexto que recibe el LLM en una etapa, desde backend/:
+    python -m app.rag.prompts --etapa 7
 """
 from __future__ import annotations
 
@@ -84,7 +93,9 @@ HERRAMIENTAS = sorted([
 def paginas_actividad(actividad: str) -> tuple[int, int]:
     """Primera y última página de una actividad, según ACTIVIDADES."""
     inicios = [inicio for inicio, _ in ACTIVIDADES] + [FIN_ACTIVIDADES]
-    i = next(i for i, (_, nombre) in enumerate(ACTIVIDADES) if nombre == actividad)
+    i = next((i for i, (_, nombre) in enumerate(ACTIVIDADES) if nombre == actividad), None)
+    if i is None:
+        raise ValueError(f"«{actividad}» no está en ACTIVIDADES.")
     return inicios[i], inicios[i + 1] - 1
 
 
