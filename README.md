@@ -302,8 +302,16 @@ metadatos.
 <summary><b>Configurar paso a paso</b></summary>
 <br>
 
-1. Copia `.env.example` como `.env` y completa `SUPABASE_DB_URL` con el connection string del
-   *Session pooler* (Project Settings › Database › Connection string) y la contraseña de la base.
+1. Copia el connection string del *Session pooler* (Project Settings › Database › Connection
+   string), con la contraseña de la base, y guárdalo en el llavero del sistema (Llavero de macOS,
+   Administrador de credenciales de Windows o Secret Service de Linux). El valor se pide sin
+   mostrarlo y no queda en `.env` ni en el historial de la terminal:
+
+   ```bash
+   cd backend && ../.venv/bin/python -m app.rag.secretos guardar SUPABASE_DB_URL
+   ```
+
+   Si ya lo tenías en `.env`, muévelo con `desde-env` en vez de `guardar`.
 2. Aplica la migración con la [CLI de Supabase](https://supabase.com/docs/guides/cli):
 
    ```bash
@@ -317,7 +325,8 @@ metadatos.
    o directamente con `psql`:
 
    ```bash
-   psql "$SUPABASE_DB_URL" -f supabase/migrations/20261001120000_indice_guia.sql
+   psql "$(cd backend && ../.venv/bin/python -m app.rag.secretos exportar SUPABASE_DB_URL)" \
+     -f supabase/migrations/20261001120000_indice_guia.sql
    ```
 
 3. Carga el índice. Si ya está en Chroma, copia esos mismos vectores sin cargar el modelo:
@@ -348,7 +357,8 @@ Chroma y pgvector devuelven los mismos 20 candidatos, en el mismo orden, en las 
 pgvector suma ~0,8 s por pregunta por la ida y vuelta a Supabase.
 
 > [!WARNING]
-> `SUPABASE_DB_URL` da acceso completo a la base: va solo en `.env` y nunca en el frontend. Supabase
+> `SUPABASE_DB_URL` da acceso completo a la base: va en el llavero del sistema, nunca en `.env`
+> ni en el frontend (ver [`secretos.py`](backend/app/rag/secretos.py)). Supabase
 > pausa los proyectos gratuitos tras una semana sin actividad: antes de una demo, revisa que el
 > proyecto esté activo.
 
@@ -375,7 +385,7 @@ Métricas, tablas y últimos resultados en [eval/README.md](eval/README.md).
 La interfaz de chat (React 19 + Vite + TypeScript) le pregunta a la API de
 [`backend/app/api.py`](backend/app/api.py), que llama a `generar.responder()` y devuelve la respuesta
 con sus fuentes y su confianza. Se necesitan dos terminales, más Ollama corriendo con `gemma3:4b`.
-Para consultar el índice de Supabase, pon `ALMACEN=pgvector` y `SUPABASE_DB_URL` en `.env`.
+Para consultar el índice de Supabase, pon `ALMACEN=pgvector` en `.env` y guarda `SUPABASE_DB_URL` en el llavero (paso 1).
 
 ```bash
 cd backend && ../.venv/bin/uvicorn app.api:app --port 8000

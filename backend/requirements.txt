@@ -6,6 +6,8 @@ chromadb>=1.5,<2
 llama-index-vector-stores-postgres>=0.9,<0.10
 # Lee la configuración del .env de la raíz
 python-dotenv>=1.2,<2
+# Guarda SUPABASE_DB_URL en el llavero del sistema en vez de .env (app/rag/secretos.py)
+keyring>=25,<26
 # Embeddings (BAAI/bge-m3) y reranker (BAAI/bge-reranker-v2-m3), locales
 FlagEmbedding>=1.4.2,<1.5
 # LLM local: cliente de Ollama (el modelo, gemma3:4b, se descarga con `ollama pull`)

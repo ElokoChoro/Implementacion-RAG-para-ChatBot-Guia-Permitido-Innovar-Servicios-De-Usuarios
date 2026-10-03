@@ -5,7 +5,7 @@ Los fragmentos y sus vectores se guardan, con distancia coseno, en el vector
 store que indica config.ALMACEN:
 
   chroma    en disco (config.RUTA_CHROMA), una colección por configuración
-  pgvector  en Supabase (config.SUPABASE_DB_URL), en una tabla creada por la
+  pgvector  en Supabase (config.supabase_db_url()), en una tabla creada por la
             migración de supabase/migrations/
 
 El índice se carga con `python -m ingesta.indexar`; este módulo solo lo abre.
@@ -44,10 +44,11 @@ def _motor():
     """Motor de SQLAlchemy para revisar la tabla (PGVectorStore abre los suyos)."""
     import sqlalchemy
 
-    if not config.SUPABASE_DB_URL:
-        raise RuntimeError("Falta SUPABASE_DB_URL. Cópiala en .env desde el panel de Supabase "
-                           "(Project Settings › Database › Connection string, Session pooler).")
-    url = sqlalchemy.make_url(config.SUPABASE_DB_URL).set(drivername="postgresql+psycopg2")
+    if not (db_url := config.supabase_db_url()):
+        raise RuntimeError("Falta SUPABASE_DB_URL. Cópiala desde el panel de Supabase (Project "
+                           "Settings › Database › Connection string, Session pooler) y guárdala en "
+                           "el llavero: cd backend && python -m app.rag.secretos guardar SUPABASE_DB_URL")
+    url = sqlalchemy.make_url(db_url).set(drivername="postgresql+psycopg2")
     return sqlalchemy.create_engine(url, pool_pre_ping=True)
 
 
@@ -67,7 +68,7 @@ def _pgvector_abierto():
     if not existe:
         raise RuntimeError(f"No existe la tabla public.{tabla_pgvector()} en Supabase. Aplica "
                            "las migraciones de supabase/migrations/ (ver README).")
-    url = sqlalchemy.make_url(config.SUPABASE_DB_URL)
+    url = sqlalchemy.make_url(config.supabase_db_url())
 
     def con_driver(driver: str) -> str:
         return url.set(drivername=driver).render_as_string(hide_password=False)
