@@ -6,7 +6,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
     'Faltan las variables de entorno VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY. ' +
-    'Revisá el archivo .env en la raíz del proyecto.'
+    'Revisa el archivo .env en la raíz del proyecto.'
   )
 }
 

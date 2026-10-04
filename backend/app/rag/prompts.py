@@ -10,12 +10,30 @@ Versiones:
       con contenido inventado. v2 obliga a decidir antes entre responder, pedir
       aclaración o rechazar; la frase de rechazo va al inicio y la cita se copia
       de la línea «fuente:» de cada fragmento.
-  v3  (vigente) v2 sin la regla de terminar con la certeza: la confianza la
-      calcula el backend con el puntaje del reranker (ver generar.py).
+  v3  v2 sin la regla de terminar con la certeza: la confianza la calcula el
+      backend con el puntaje del reranker (ver generar.py).
+  v4  (vigente) El mensaje de usuario trae el contexto de la etapa y no solo su
+      nombre: propósito, actividad de la guía, objetivo y herramientas, desde
+      guia.py, para que el caso B se resuelva con la herramienta de la etapa.
+      Sin etapa, el mensaje queda igual que en v3 («no indicada»). SISTEMA no
+      cambia. Ojo: con el UMBRAL 0,5, «¿cómo hago el mapa?», «¿cómo se completa
+      el plan?» y «¿cómo se llena la ficha?» quedan bajo el umbral con y sin
+      etapa, aun filtrando por ella (0,005 a 0,258), y no llegan al LLM. Con
+      UMBRAL=0 y filtro (etapas 2, 3, 6 y 7), v4 y v3 eligen la herramienta de
+      la etapa en los 4 casos y fallan las citas en 2: sin diferencia clara con
+      n=4 (gemma3:4b, 2026-10-02).
+
+Para ver el contexto que recibe el LLM en cada etapa, desde backend/:
+    python -m app.rag.prompts --etapa 7
+    python -m app.rag.prompts            # las 7 etapas del Propósito 1
 """
 from __future__ import annotations
 
-VERSION_PROMPT = "v3"
+import argparse
+
+from app.rag import guia
+
+VERSION_PROMPT = "v4"
 
 # Frase acordada para cuando la guía no responde. generar.py la busca al inicio
 # de la respuesta para saber si el LLM rechazó la pregunta.
@@ -47,15 +65,56 @@ USUARIO = """Etapa actual del proyecto (si se conoce): {etapa}
 
 Pregunta: {pregunta}"""
 
-# Etapas de la plataforma SSP-UXLab y la actividad de la guía que les corresponde
-ETAPAS = {
-    1: "1 Investigación", 2: "2 Personas usuarias", 3: "3 Habilitación y expectativas",
-    4: "4 Necesidades", 5: "5 Vinculación", 6: "6 Medición", 7: "7 Momentos críticos",
-}
+# Va a continuación de «Etapa actual del proyecto (si se conoce):». Las páginas
+# quedan fuera a propósito: la regla 1 exige citar solo las líneas «fuente:» de
+# los fragmentos, y una página en el contexto de la etapa invitaría a citarla.
+# Unas 95 palabras por etapa (ver con --etapa), por gemma3:4b en un Mac de 8 GB.
+ETAPA = """{numero} {nombre}
+- Propósito {proposito}: {nombre_proposito}
+- Actividad de la guía: {actividad}
+- Objetivo de la etapa: {objetivo}
+- {rotulo_herramientas}: {herramientas}
+La etapa sirve para saber a qué herramienta o actividad se refiere la pregunta; no es un fragmento de la guía y no se cita."""
 
 
-def texto_etapa(etapa: int | None) -> str:
-    """Etapa como se le muestra al LLM; «no indicada» si no se conoce."""
+def texto_etapa(etapa: int | None, proposito: int = 1) -> str:
+    """Contexto de la etapa como se le muestra al LLM; «no indicada» si no se conoce."""
     if not etapa:
         return "no indicada"
-    return ETAPAS.get(etapa, str(etapa))
+    e = guia.etapa(etapa, proposito)
+    if e is None:
+        return str(etapa)
+    herramientas = [nombre for _, nombre in e.herramientas]
+    return ETAPA.format(
+        numero=e.numero, nombre=e.nombre, proposito=proposito,
+        nombre_proposito=guia.PROPOSITOS[proposito].nombre, actividad=e.actividad,
+        objetivo=e.objetivo, herramientas=", ".join(herramientas),
+        rotulo_herramientas="Herramientas de la etapa" if len(herramientas) > 1 else "Herramienta de la etapa")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--etapa", type=int, help="etapa a mostrar; sin ella, todas las del propósito")
+    ap.add_argument("--proposito", type=int, default=1, help="propósito de la guía (por ahora solo el 1)")
+    args = ap.parse_args()
+
+    p = guia.PROPOSITOS.get(args.proposito)
+    if p is None:
+        raise SystemExit(f"No hay datos del Propósito {args.proposito}. Propósitos: {sorted(guia.PROPOSITOS)}.")
+    etapas = [p.etapa(args.etapa)] if args.etapa is not None else list(p.etapas)
+    if etapas == [None]:
+        raise SystemExit(f"El Propósito {p.numero} no tiene etapa {args.etapa}. "
+                         f"Etapas: {[e.numero for e in p.etapas]}.")
+    for e in etapas:
+        inicio, fin = e.paginas
+        texto = texto_etapa(e.numero, p.numero)
+        print(f"=== Etapa {e.numero} «{e.nombre}» · Propósito {p.numero} (p. {p.pagina})")
+        print(f"actividad: {e.actividad}, págs. {inicio}-{fin}")
+        print("herramientas: " + "; ".join(f"{nombre}, p. {pag}" for pag, nombre in e.herramientas))
+        print("objetivo verificable en: " + ", ".join(f"p. {pag}" for pag in e.paginas_objetivo))
+        print(f"\n--- Lo que recibe el LLM ({len(texto.split())} palabras) ---")
+        print(f"Etapa actual del proyecto (si se conoce): {texto}\n")
+
+
+if __name__ == "__main__":
+    main()
