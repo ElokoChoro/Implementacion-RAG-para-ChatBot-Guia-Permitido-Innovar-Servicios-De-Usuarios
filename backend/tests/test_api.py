@@ -62,4 +62,4 @@ def test_salud() -> None:
     r = cliente.get("/salud")
 
     assert r.status_code == 200
-    assert set(r.json()) == {"almacen", "llm", "embeddings", "reranker", "umbral"}
+    assert set(r.json()) == {"almacen", "proveedor_llm", "llm_url", "llm", "embeddings", "reranker", "umbral"}

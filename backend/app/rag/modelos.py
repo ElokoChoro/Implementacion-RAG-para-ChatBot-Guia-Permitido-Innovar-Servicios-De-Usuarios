@@ -15,8 +15,9 @@ ReordenadorBGE
 
 llm()
     El LLM que redacta la respuesta (gemma3:4b por defecto). No corre en este
-    proceso: es un cliente de Ollama, que tiene que estar corriendo con el
-    modelo descargado (`ollama pull gemma3:4b`).
+    proceso: es un cliente de Ollama (`ollama pull gemma3:4b`) o, con
+    PROVEEDOR_LLM=openai, de un servidor compatible con la API de OpenAI, como
+    LM Studio. El servidor puede estar en otro equipo.
 
 Cargar cada modelo de FlagEmbedding tarda varios segundos y ocupa ~1,2 GB en
 fp16. Usar `embedding()`, `reordenador()` y `llm()`, que crean una sola
@@ -30,9 +31,9 @@ from typing import Any
 from FlagEmbedding import BGEM3FlagModel, FlagReranker
 from llama_index.core.bridge.pydantic import Field, PrivateAttr
 from llama_index.core.embeddings import BaseEmbedding
+from llama_index.core.llms import LLM
 from llama_index.core.postprocessor.types import BaseNodePostprocessor
 from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
-from llama_index.llms.ollama import Ollama
 
 from app.rag import config
 
@@ -138,10 +139,23 @@ def reordenador() -> ReordenadorBGE:
 
 
 @lru_cache(maxsize=1)
-def llm() -> Ollama:
-    """Cliente compartido del LLM en Ollama, con la temperatura y los límites de config."""
-    return Ollama(model=config.LLM, base_url=config.OLLAMA_URL,
-                  temperature=config.TEMPERATURE,
-                  context_window=config.CONTEXTO_TOKENS,  # se envía como num_ctx
-                  request_timeout=config.TIMEOUT_S,
-                  additional_kwargs={"num_predict": config.MAX_TOKENS_RESPUESTA})
+def llm() -> LLM:
+    """Cliente compartido del LLM según PROVEEDOR_LLM, con la temperatura y los límites de config."""
+    if config.PROVEEDOR_LLM == "ollama":
+        from llama_index.llms.ollama import Ollama
+        return Ollama(model=config.LLM, base_url=config.OLLAMA_URL,
+                      temperature=config.TEMPERATURE,
+                      context_window=config.CONTEXTO_TOKENS,  # se envía como num_ctx
+                      request_timeout=config.TIMEOUT_S,
+                      additional_kwargs={"num_predict": config.MAX_TOKENS_RESPUESTA})
+    if config.PROVEEDOR_LLM == "openai":
+        from llama_index.llms.openai_like import OpenAILike
+        # context_window no viaja al servidor: LlamaIndex lo usa para saber cuánto cabe.
+        # Sin reintentos, para que TIMEOUT_S sea la espera total, como con Ollama.
+        return OpenAILike(model=config.LLM, api_base=config.LLM_URL, api_key=config.LLM_API_KEY,
+                          temperature=config.TEMPERATURE,
+                          context_window=config.CONTEXTO_TOKENS,
+                          max_tokens=config.MAX_TOKENS_RESPUESTA,
+                          timeout=config.TIMEOUT_S, max_retries=0,
+                          is_chat_model=True, is_function_calling_model=False)
+    raise ValueError(f"PROVEEDOR_LLM={config.PROVEEDOR_LLM!r} no existe. Usa «ollama» u «openai».")

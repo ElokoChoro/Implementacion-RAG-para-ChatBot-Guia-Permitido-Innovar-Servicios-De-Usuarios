@@ -26,7 +26,7 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 
 Pipeline: Docling `standard` sin OCR → `SentenceSplitter` 400/50 → `BAAI/bge-m3` → Chroma o
 pgvector (coseno, 20 candidatos) → `BAAI/bge-reranker-v2-m3` (top 4) → umbral 0,5 →
-`gemma3:4b` en Ollama.
+`gemma3:4b` en Ollama (o, con `PROVEEDOR_LLM=openai`, un servidor compatible con OpenAI como LM Studio).
 
 ## Comandos
 
@@ -67,7 +67,10 @@ o `app.rag.generar` y corre el script de `eval/` que corresponda. Una regla nuev
 no dependa de los modelos (un corte, un campo, una validación) lleva su test en `backend/tests/`.
 
 Requisitos de los modelos: la primera ejecución descarga bge-m3 y el reranker desde Hugging Face
-(~2,3 GB cada uno). La generación necesita Ollama corriendo con `ollama pull gemma3:4b`. El equipo
+(~2,3 GB cada uno). La generación necesita Ollama corriendo con `ollama pull gemma3:4b` o, con
+`PROVEEDOR_LLM=openai`, otro servidor compatible con la API de OpenAI, en el mismo equipo o en otro
+(README, «LLM en cada equipo»). Todo cliente del LLM se crea en `llm()` y sus errores se traducen
+en `generar._generar()`: un proveedor nuevo va en esos dos lugares. El equipo
 de referencia es un Mac M2 de 8 GB: no cargues más modelos de los necesarios en un mismo proceso y
 usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean una sola instancia.
 

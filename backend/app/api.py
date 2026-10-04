@@ -10,7 +10,7 @@ Las preguntas se atienden de a una: bge-m3, el reranker y el LLM comparten la
 memoria del equipo y dos consultas a la vez no caben en un Mac de 8 GB. Los
 modelos se cargan con la primera pregunta, que por eso tarda más.
 
-Desde backend/ (Ollama corriendo con el modelo de config.LLM):
+Desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
     ../.venv/bin/uvicorn app.api:app --port 8000
 """
 from __future__ import annotations
@@ -43,11 +43,12 @@ def consultar_guia(consulta: Consulta) -> dict:
     with _turno:
         try:
             return responder(pregunta, consulta.etapa, consulta.filtrar_etapa).a_dict()
-        except RuntimeError as e:  # Ollama caído, sin el modelo o sin responder
+        except RuntimeError as e:  # servidor del LLM caído, sin el modelo o sin responder
             raise HTTPException(status_code=503, detail=str(e)) from e
 
 
 @app.get("/salud")
 def salud() -> dict:
-    return {"almacen": config.ALMACEN, "llm": config.LLM, "embeddings": config.EMBEDDINGS,
+    return {"almacen": config.ALMACEN, "proveedor_llm": config.PROVEEDOR_LLM,
+            "llm_url": config.url_llm(), "llm": config.LLM, "embeddings": config.EMBEDDINGS,
             "reranker": config.RERANKER, "umbral": config.UMBRAL}

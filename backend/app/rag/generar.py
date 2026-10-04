@@ -6,14 +6,15 @@ Respuesta a una pregunta sobre la guía, con citas y nivel de confianza.
   2. Umbral: se descartan los fragmentos con puntaje bajo UMBRAL. Si no queda
      ninguno, la guía no responde la pregunta y se contesta «No encuentro esa
      información en la guía.» sin llamar al LLM.
-  3. Generación: el LLM local (Ollama) redacta la respuesta solo con esos
-     fragmentos, citando la línea «fuente:» de cada uno (prompts.py). Todavía
-     puede rechazar la pregunta si los fragmentos no la responden.
+  3. Generación: el LLM (Ollama u otro servidor, según PROVEEDOR_LLM) redacta
+     la respuesta solo con esos fragmentos, citando la línea «fuente:» de cada
+     uno (prompts.py). Todavía puede rechazar la pregunta si los fragmentos no
+     la responden.
 
 Las fuentes de la respuesta salen de los fragmentos, no del texto del LLM, y la
 confianza sale del mejor puntaje del reranker (CONFIANZA_MEDIA, CONFIANZA_ALTA).
 
-Prueba rápida, desde backend/ (Ollama corriendo con el modelo de config.LLM):
+Prueba rápida, desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
     python -m app.rag.generar "¿Qué es un mapa de momentos críticos?" --etapa 7
     python -m app.rag.generar "¿Cuánto presupuesto se necesita?" --json
 """
@@ -25,6 +26,7 @@ import time
 from dataclasses import asdict, dataclass, field
 
 import httpx
+import openai
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
@@ -81,7 +83,7 @@ def _contexto(nodos: list[NodeWithScore]) -> str:
 
 
 def _generar(pregunta: str, etapa: int | None, nodos: list[NodeWithScore]) -> str:
-    """Llama al LLM con el prompt y los fragmentos. RuntimeError si Ollama no responde."""
+    """Llama al LLM con el prompt y los fragmentos. RuntimeError si el servidor del LLM no responde."""
     return chat([
         ChatMessage(role=MessageRole.SYSTEM, content=SISTEMA),
         ChatMessage(role=MessageRole.USER, content=USUARIO.format(
@@ -90,19 +92,29 @@ def _generar(pregunta: str, etapa: int | None, nodos: list[NodeWithScore]) -> st
 
 
 def chat(mensajes: list[ChatMessage]) -> str:
-    """Respuesta del LLM local a `mensajes`. RuntimeError con qué hacer si Ollama falla."""
+    """Respuesta del LLM a `mensajes`. RuntimeError con qué hacer si el servidor del LLM falla."""
     try:
         return (llm().chat(mensajes).message.content or "").strip()
-    except ConnectionError as e:
-        raise RuntimeError(f"El modelo local no está disponible en {config.OLLAMA_URL}. "
-                           "Inicia Ollama (ollama serve).") from e
-    except httpx.TimeoutException as e:
-        raise RuntimeError(f"El modelo local no respondió en {config.TIMEOUT_S:.0f} s.") from e
+    # APITimeoutError hereda de APIConnectionError: va antes.
+    except (httpx.TimeoutException, openai.APITimeoutError) as e:
+        raise RuntimeError(f"El modelo no respondió en {config.TIMEOUT_S:.0f} s. "
+                           "Sube TIMEOUT_S o usa un modelo más chico.") from e
+    except (ConnectionError, openai.APIConnectionError) as e:
+        como = ("Inicia Ollama (ollama serve)." if config.PROVEEDOR_LLM == "ollama"
+                else "Inicia el servidor del modelo y revisa LLM_URL en .env.")
+        raise RuntimeError(f"El modelo no está disponible en {config.url_llm()}. {como}") from e
     except ResponseError as e:
         if e.status_code == 404:
             raise RuntimeError(f"Ollama no tiene el modelo «{config.LLM}». "
                                f"Descárgalo con: ollama pull {config.LLM}") from e
-        raise RuntimeError(f"Error del modelo local: {e.error}") from e
+        raise RuntimeError(f"Error del modelo: {e.error}") from e
+    except openai.NotFoundError as e:
+        raise RuntimeError(f"El servidor en {config.LLM_URL} no tiene el modelo «{config.LLM}». "
+                           f"Revisa el nombre en {config.LLM_URL}/models y ponlo en LLM.") from e
+    except openai.AuthenticationError as e:
+        raise RuntimeError(f"El servidor en {config.LLM_URL} rechazó la clave. Revisa LLM_API_KEY.") from e
+    except openai.APIStatusError as e:
+        raise RuntimeError(f"Error del modelo: {e.message}") from e
 
 
 def responder(pregunta: str, etapa: int | None = None, filtrar_etapa: bool = False) -> Respuesta:

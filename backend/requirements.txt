@@ -8,8 +8,10 @@ llama-index-vector-stores-postgres>=0.9,<0.10
 python-dotenv>=1.2,<2
 # Embeddings (BAAI/bge-m3) y reranker (BAAI/bge-reranker-v2-m3), locales
 FlagEmbedding>=1.4.2,<1.5
-# LLM local: cliente de Ollama (el modelo, gemma3:4b, se descarga con `ollama pull`)
+# LLM: cliente de Ollama (el modelo, gemma3:4b, se descarga con `ollama pull`)
 llama-index-llms-ollama>=0.11,<0.12
+# LLM con PROVEEDOR_LLM=openai: servidores compatibles con la API de OpenAI (LM Studio, llama.cpp…)
+llama-index-llms-openai-like>=0.8,<0.9
 # API HTTP para la interfaz de chat (app/api.py)
 fastapi>=0.142,<0.143
 uvicorn>=0.54,<0.55
