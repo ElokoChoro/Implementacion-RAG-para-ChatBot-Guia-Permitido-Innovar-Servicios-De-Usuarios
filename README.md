@@ -265,6 +265,19 @@ cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de mom
 
 Aquí `--etapa` filtra por etapa y `--sin-reranker` muestra el orden solo por similitud, para comparar.
 
+**5. Próximos pasos de una etapa** (asistente por etapa, desde `backend/`):
+
+```bash
+cd backend && ../.venv/bin/python -m app.rag.sugerir 7 --contexto "Renovación del permiso de circulación"
+```
+
+No hay pregunta: busca los fragmentos de la actividad de esa etapa (filtrados por etapa) y el LLM
+sugiere qué busca la etapa, de tres a cinco próximos pasos y la herramienta de la guía, con citas.
+`--datos '{"mapa_momentos_criticos": "pendiente"}'` agrega el avance registrado en la etapa,
+`--json` muestra la forma del contrato y `--ver-prompt` muestra el prompt sin llamar al LLM. Es la
+base de `POST /ia/sugerir-proximos-pasos` de la plataforma, que recibe `etapa`, `contexto` y
+`datos_etapa`.
+
 > [!NOTE]
 > En un Mac de 8 GB, con bge-m3, el reranker y gemma3:4b cargados a la vez, falta memoria y cada
 > respuesta tarda entre 50 s y 4 min. Una pregunta rechazada por el umbral no llama al LLM.
@@ -359,6 +372,7 @@ pgvector suma ~0,8 s por pregunta por la ida y vuelta a Supabase.
 | Script | Qué hace | Requisitos |
 | --- | --- | --- |
 | [`calibrar_umbral.py`](eval/calibrar_umbral.py) | Prueba umbrales de rechazo y cortes de confianza (sin LLM, ~9 min) | — |
+| [`probar_asistente_etapa.py`](eval/probar_asistente_etapa.py) | Prueba el prompt del asistente por etapa con 9 escenarios ficticios (~15 min) | Ollama con `gemma3:4b` |
 | [`comparar_embeddings.py`](eval/comparar_embeddings.py) | Compara bge-m3, qwen3-embedding y embeddinggemma, con y sin reranker | Ollama con `qwen3-embedding:0.6b` y `embeddinggemma` |
 | [`comparar_almacenes.py`](eval/comparar_almacenes.py) | Compara la recuperación en Chroma y en pgvector | Los dos índices y `SUPABASE_DB_URL` |
 
@@ -419,7 +433,8 @@ mes las actualizaciones de npm, pip y GitHub Actions.
 .
 ├── backend/
 │   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia
-│   ├── app/rag/            Consulta: config, modelos, indice, recuperar, guia, prompts, generar
+│   ├── app/rag/            Consulta: config, modelos, indice, recuperar, guia, prompts, generar;
+│   │                       asistente por etapa: prompts_etapa, sugerir
 │   └── tests/              Tests con pytest, sin modelos ni Ollama
 ├── ingesta/                PDF → JSON de Docling → corpus → índice vectorial
 ├── data/

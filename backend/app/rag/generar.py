@@ -82,11 +82,15 @@ def _contexto(nodos: list[NodeWithScore]) -> str:
 
 def _generar(pregunta: str, etapa: int | None, nodos: list[NodeWithScore]) -> str:
     """Llama al LLM con el prompt y los fragmentos. RuntimeError si Ollama no responde."""
-    mensajes = [
+    return chat([
         ChatMessage(role=MessageRole.SYSTEM, content=SISTEMA),
         ChatMessage(role=MessageRole.USER, content=USUARIO.format(
             etapa=texto_etapa(etapa), contexto=_contexto(nodos), pregunta=pregunta)),
-    ]
+    ])
+
+
+def chat(mensajes: list[ChatMessage]) -> str:
+    """Respuesta del LLM local a `mensajes`. RuntimeError con qué hacer si Ollama falla."""
     try:
         return (llm().chat(mensajes).message.content or "").strip()
     except ConnectionError as e:

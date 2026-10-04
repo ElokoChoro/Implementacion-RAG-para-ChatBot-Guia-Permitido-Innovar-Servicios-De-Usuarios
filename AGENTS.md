@@ -12,7 +12,7 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 
 | Carpeta | Contenido |
 | --- | --- |
-| `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar` |
+| `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir` |
 | `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia` y `GET /salud`; atiende las preguntas de a una |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
@@ -44,8 +44,10 @@ ALMACEN=pgvector .venv/bin/python -m ingesta.indexar --desde-chroma   # copia el
 cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de momentos críticos?" --etapa 7
 cd backend && ../.venv/bin/python -m app.rag.generar "¿Qué es un plano del servicio?" --json
 cd backend && ../.venv/bin/python -m app.rag.prompts --etapa 7   # contexto de la etapa que recibe el LLM
+cd backend && ../.venv/bin/python -m app.rag.sugerir 4 --ver-prompt   # asistente por etapa, sin LLM
 cd backend && ../.venv/bin/uvicorn app.api:app --port 8000   # API para el chatbot (npm run dev en otra terminal)
 .venv/bin/python eval/calibrar_umbral.py                   # umbral y cortes de confianza
+.venv/bin/python eval/probar_asistente_etapa.py            # prompt del asistente por etapa (con LLM)
 .venv/bin/python eval/comparar_embeddings.py               # necesita Ollama con qwen3-embedding y embeddinggemma
 .venv/bin/python eval/comparar_almacenes.py                # necesita los dos índices y SUPABASE_DB_URL
 ```
@@ -83,7 +85,9 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   `eval/calibrar_umbral.py`: los puntajes no son comparables entre modelos.
 - **Prompt** (`prompts.py`, y los datos de `guia.py` que llegan al LLM: nombre, actividad y objetivo
   de cada etapa, nombre del propósito y nombres de `HERRAMIENTAS`): todo cambio sube `VERSION_PROMPT` y se anota en la lista de versiones
-  del docstring. `generar.py` detecta el rechazo del LLM buscando `MENSAJE_NO_ENCONTRADA` al
+  del docstring. Lo mismo con el prompt del asistente por etapa (`prompts_etapa.py`,
+  `VERSION_PROMPT_ETAPA`), que también recibe esos datos de `guia.py` y se prueba con
+  `eval/probar_asistente_etapa.py`. `generar.py` detecta el rechazo del LLM buscando `MENSAJE_NO_ENCONTRADA` al
   **inicio** de la respuesta: si cambias esa frase o la regla del caso C, revisa los dos archivos.
 - **Confianza y fuentes** salen del puntaje del reranker y de los metadatos de los fragmentos, nunca
   del texto del LLM. `Respuesta` en `generar.py` tiene la forma del contrato `POST /ia/consultar-guia`:

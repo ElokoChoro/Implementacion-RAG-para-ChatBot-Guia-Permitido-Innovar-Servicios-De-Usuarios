@@ -31,6 +31,7 @@ TEMPERATURE            Aleatoriedad del LLM; baja para que se apegue a la guía.
 CONTEXTO_TOKENS        Ventana de contexto del LLM (num_ctx de Ollama).
 MAX_TOKENS_RESPUESTA   Largo máximo de la respuesta, en tokens (num_predict de Ollama).
 TIMEOUT_S              Segundos de espera a Ollama antes de dar error.
+MAX_CARACTERES_PROYECTO  Largo máximo del contexto del proyecto que recibe el asistente por etapa.
 UMBRAL                 Puntaje mínimo del reranker (0 a 1) para que un fragmento llegue al LLM.
 CONFIANZA_MEDIA        Mejor puntaje desde el que la confianza es «media».
 CONFIANZA_ALTA         Mejor puntaje desde el que la confianza es «alta».
@@ -123,6 +124,10 @@ TEMPERATURE = _env("TEMPERATURE", 0.1, float)
 CONTEXTO_TOKENS = _env("CONTEXTO_TOKENS", 4096, int)
 MAX_TOKENS_RESPUESTA = _env("MAX_TOKENS_RESPUESTA", 768, int)
 TIMEOUT_S = _env("TIMEOUT_S", 180, float)
+# Lo que el equipo registró del proyecto (asistente por etapa, sugerir.py). El resto de ese
+# prompt ocupa unos 1850 tokens con TOP_K=4 (medido con gemma3:4b); 1500 caracteres son unos
+# 400 tokens y dejan espacio para la respuesta dentro de CONTEXTO_TOKENS.
+MAX_CARACTERES_PROYECTO = _env("MAX_CARACTERES_PROYECTO", 1500, int)
 
 # ---- Umbral y confianza ---------------------------------------------------------
 # Sobre el puntaje del reranker (0 a 1). Los fragmentos bajo UMBRAL no llegan al
