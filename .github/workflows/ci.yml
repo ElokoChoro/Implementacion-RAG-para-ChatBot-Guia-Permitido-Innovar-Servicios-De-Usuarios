@@ -40,12 +40,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: |
-            requirements-dev.txt
-            backend/requirements.txt
-      # FlagEmbedding depende de torch. La rueda de CPU pesa una fracción de la de CUDA, que es la
-      # que pip baja por defecto en Linux, y alcanza: los tests no cargan modelos.
-      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -r requirements-dev.txt
+          cache-dependency-path: requirements.lock
+      # Las versiones de requirements.lock, las mismas con que se midió eval/. FlagEmbedding depende de
+      # torch: el lock fija la rueda de CPU en Linux (pesa una fracción de la de CUDA y alcanza, porque
+      # los tests no cargan modelos), que está en el índice de PyTorch.
+      - run: >-
+          pip install -r requirements-dev.txt -c requirements.lock
+          --extra-index-url https://download.pytorch.org/whl/cpu
       - run: ruff check --output-format github
       - run: python -m pytest

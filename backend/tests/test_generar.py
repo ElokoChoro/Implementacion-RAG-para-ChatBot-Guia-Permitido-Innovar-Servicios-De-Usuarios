@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import httpx
 import openai
 import pytest
-from conftest import CAMPOS_CONTRATO, fragmento
+from conftest import CAMPOS_CONTRATO, CAMPOS_FUENTE, fragmento
 
 from app.rag import config, flujo, generar, modelos
 from app.rag.contrato import Respuesta
@@ -124,7 +124,9 @@ def test_respuesta_tiene_los_campos_del_contrato(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(generar, "recuperar", lambda *a, **k: [fragmento(0.8)])
     monkeypatch.setattr(generar, "_generar", lambda *a: "Respuesta.")
 
-    assert set(generar.responder("¿Qué es?").a_dict()) == CAMPOS_CONTRATO
+    r = generar.responder("¿Qué es?").a_dict()
+    assert set(r) == CAMPOS_CONTRATO
+    assert [set(f) for f in r["fuentes"]] == [CAMPOS_FUENTE]
     assert set(Respuesta(resultado="", encontrada=False, confianza=None).a_dict()) == CAMPOS_CONTRATO
 
 

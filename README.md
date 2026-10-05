@@ -231,10 +231,14 @@ python3.12 -m venv .venv
 ```
 
 ```bash
-.venv/bin/pip install -r ingesta/requirements.txt
+.venv/bin/pip install -r ingesta/requirements.txt -r requirements-dev.txt -c requirements.lock
 ```
 
-La consulta sola (sin Docling) necesita únicamente `backend/requirements.txt`.
+`requirements.lock` fija las versiones exactas con que se midió [`eval/`](eval/): sin él, pip instala
+las más nuevas dentro de los rangos, y una versión nueva de transformers o torch puede cambiar los
+puntajes. En Linux o WSL agrega `--extra-index-url https://download.pytorch.org/whl/cpu`: el lock fija
+torch de CPU, que está en el índice de PyTorch. La consulta sola (sin Docling) necesita únicamente
+`backend/requirements.txt`.
 
 **2. Descarga el LLM (~3,3 GB).** Con LM Studio, sigue [LLM en cada equipo](#-llm-en-cada-equipo).
 
@@ -558,11 +562,12 @@ servidor que atiende a la plataforma. El LLM lo carga su propio servidor con la 
 
 **Log.** Cada solicitud deja una línea `clave=valor` en el log de uvicorn, y cada respuesta otra con
 el desglose de tiempos ([`registro.py`](backend/app/rag/registro.py)). No guardan el texto de la
-pregunta ni del proyecto, solo su largo:
+pregunta ni del proyecto, solo su largo. Por ejemplo, la primera pregunta tras arrancar (la
+recuperación incluye cargar los modelos) en un Mac M2 de 8 GB, y una consulta con la cola llena:
 
 ```text
-INFO app.rag.generar: etapa=7 filtrar_etapa=false largo_pregunta=31 mejor=0.936 fragmentos=4 t_recuperacion_s=5.2 t_llm_s=118.4 encontrada=true
-INFO app.api: ruta=consultar-guia estado=200 espera_s=0 latencia_s=123.6 encontrada=true confianza=alta mejor=0.936 fuentes=4 modo=local prompt=v4
+INFO app.rag.generar: etapa=- filtrar_etapa=false largo_pregunta=30 mejor=0.95 fragmentos=4 t_recuperacion_s=22.1 t_llm_s=23.5 encontrada=true
+INFO app.api: ruta=consultar-guia estado=200 espera_s=0 latencia_s=45.6 encontrada=true confianza=alta mejor=0.95 fuentes=4 modo=local prompt=v4
 WARNING app.api: ruta=consultar-guia estado=503 motivo=cola_llena
 ```
 
@@ -586,8 +591,19 @@ campos del contrato, la validación de la API y las etapas con el contexto que r
 
 No miden la calidad de las respuestas: eso lo hacen los scripts de [`eval/`](eval/). El
 [CI](.github/workflows/ci.yml) corre `ruff check` y `pytest` para el backend, y `npm run lint` y
-`npm run build` para el chatbot, en cada PR y en cada push a `main`. Dependabot propone una vez al
-mes las actualizaciones de npm, pip y GitHub Actions.
+`npm run build` para el chatbot, en cada PR y en cada push a `main`, con las versiones de
+`requirements.lock`. Dependabot propone una vez al mes las actualizaciones de npm, pip y GitHub
+Actions.
+
+Para actualizar las dependencias de Python, cambia los rangos de los `requirements*.txt` (o acepta
+el PR de Dependabot), regenera el lock con [uv](https://docs.astral.sh/uv/) y vuelve a correr la
+evaluación que corresponda:
+
+```bash
+uv pip compile requirements-dev.txt ingesta/requirements.txt --universal --python-version 3.12 --torch-backend cpu -o requirements.lock --upgrade
+```
+
+Sin `--upgrade`, `uv` conserva las versiones del lock y solo agrega o quita lo que cambió.
 
 ---
 
@@ -598,8 +614,9 @@ mes las actualizaciones de npm, pip y GitHub Actions.
 ├── backend/
 │   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia y /ia/sugerir-proximos-pasos
 │   ├── app/rag/            Consulta: config, modelos, indice, recuperar, guia, prompts, generar;
-│   │                       asistente por etapa: prompts_etapa, sugerir; contrato (forma de la
-│   │                       respuesta) y simulador (respuestas fijas, sin modelos)
+│   │                       asistente por etapa: prompts_etapa, sugerir; flujo (pasos comunes de
+│   │                       los dos), contrato (forma de la respuesta), simulador (respuestas
+│   │                       fijas, sin modelos) y registro (log por consulta)
 │   ├── requirements-simulador.txt  Solo la API con MODO=simulador
 │   └── tests/              Tests con pytest, sin modelos ni Ollama
 ├── ingesta/                PDF → JSON de Docling → corpus → índice vectorial
@@ -609,6 +626,7 @@ mes las actualizaciones de npm, pip y GitHub Actions.
 ├── eval/                   Preguntas, scripts de comparación y calibración, resultados
 ├── supabase/migrations/    Tabla public.data_guia_fragmentos con pgvector
 ├── src/                    Chatbot de prueba (React + Vite), conectado a la API
+├── requirements.lock       Versiones exactas de Python con que se midió eval/
 └── .github/                CI (lint, tipos, build y tests) y Dependabot
 ```
 

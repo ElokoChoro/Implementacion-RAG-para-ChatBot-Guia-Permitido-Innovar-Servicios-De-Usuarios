@@ -6,7 +6,7 @@ import logging
 import threading
 
 import pytest
-from conftest import CAMPOS_CONTRATO
+from conftest import CAMPOS_CONTRATO, CAMPOS_FUENTE
 from fastapi.testclient import TestClient
 
 from app import api
@@ -295,3 +295,14 @@ def test_sugerir_pide_la_clave(monkeypatch: pytest.MonkeyPatch, sugerencias: lis
     assert sin_clave.status_code == 401
     assert con_clave.status_code == 200
     assert sugerencias == [(7, None, None)]
+
+
+def test_openapi_documenta_fuentes_y_confianza() -> None:
+    # Quien integra la API ve en /openapi.json los campos de cada fuente y los valores de la confianza.
+    esquemas = cliente.get("/openapi.json").json()["components"]["schemas"]
+
+    assert set(esquemas["Fuente"]["properties"]) == CAMPOS_FUENTE
+    assert set(esquemas["Fuente"]["required"]) == CAMPOS_FUENTE
+    assert set(esquemas["Respuesta"]["properties"]) == CAMPOS_CONTRATO
+    confianza = esquemas["Respuesta"]["properties"]["confianza"]["anyOf"]
+    assert {"enum": ["alta", "media", "baja"], "type": "string"} in confianza

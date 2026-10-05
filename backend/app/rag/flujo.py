@@ -31,7 +31,7 @@ from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
 from ollama import ResponseError
 
 from app.rag import config
-from app.rag.contrato import Respuesta
+from app.rag.contrato import Fuente, Respuesta
 from app.rag.modelos import llm
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA
 
@@ -58,11 +58,11 @@ def confianza(puntaje: float) -> str:
     return "baja"
 
 
-def fuente(n: NodeWithScore) -> dict:
+def fuente(n: NodeWithScore) -> Fuente:
     """Cita de un fragmento: herramienta, actividad o sección (la más específica) y página."""
     m = n.node.metadata
     return {
-        "seccion": m.get("herramienta") or m.get("actividad") or m.get("seccion"),
+        "seccion": m.get("herramienta") or m.get("actividad") or m["seccion"],
         "pagina": m["pagina_inicio"],
         "fuente": m["fuente"],  # «Sección › Herramienta, p. N», como lo cita el LLM
         "fragmento": n.node.get_content()[:300],

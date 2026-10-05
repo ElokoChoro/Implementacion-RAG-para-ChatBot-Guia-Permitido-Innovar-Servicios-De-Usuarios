@@ -33,8 +33,8 @@ Python 3.12 con el entorno en `.venv/`. **Ojo con el directorio**: la consulta s
 `backend/`; la ingesta y la evaluación, desde la raíz.
 
 ```bash
-python3.12 -m venv .venv && .venv/bin/pip install -r ingesta/requirements.txt   # ingesta + consulta
-.venv/bin/pip install -r requirements-dev.txt               # pytest y ruff
+python3.12 -m venv .venv          # ingesta, consulta, pytest y ruff, con las versiones del lock:
+.venv/bin/pip install -r ingesta/requirements.txt -r requirements-dev.txt -c requirements.lock
 .venv/bin/python -m pytest                                 # tests, en segundos (config en pyproject.toml)
 .venv/bin/ruff check                                       # lint de Python
 .venv/bin/python -m ingesta.indexar                        # reconstruye el índice (Chroma)
@@ -98,9 +98,10 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   regla del caso C, revisa `prompts.py` y `flujo.py`.
 - **Confianza y fuentes** salen del puntaje del reranker y de los metadatos de los fragmentos, nunca
   del texto del LLM. `Respuesta` en `contrato.py` tiene la forma del contrato `POST /ia/consultar-guia`:
-  no cambies sus campos sin acordarlo. Los tests comparan sus campos con `CAMPOS_CONTRATO`
-  (`backend/tests/conftest.py`), copia de `RespuestaGuia` de `src/lib/rag.ts`; si el cambio se
-  acuerda, actualiza los tres, y también las respuestas de `simulador.py`.
+  no cambies sus campos sin acordarlo. Los tests comparan sus campos con `CAMPOS_CONTRATO` y los
+  de cada fuente (`Fuente`) con `CAMPOS_FUENTE` (`backend/tests/conftest.py`), copias de
+  `RespuestaGuia` de `src/lib/rag.ts` y `Fuente` de `src/types.ts`; si el cambio se acuerda,
+  actualiza los tres lugares, y también las respuestas de `simulador.py`.
 - **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `registro.py`, `prompts.py`, `prompts_etapa.py` y `guia.py`
   no importan LlamaIndex, FlagEmbedding ni clientes de LLM (o lo hacen dentro de una función), para
   que `MODO=simulador` corra con `backend/requirements-simulador.txt`. `test_simulador.py` lo revisa.
@@ -110,6 +111,10 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   `HERRAMIENTAS`) y la etapa → actividad del Propósito 1 están en `backend/app/rag/guia.py`, que
   comparten la ingesta y el prompt: cambiarlas cambia el corpus. Los créditos (p. 2) se indexan como `FICHA_CREDITOS`
   (`ingesta/corpus.py`); si cambia la guía, revísala contra la página. Formato en [data/corpus/README.md](data/corpus/README.md).
+- **Dependencias de Python**: un cambio en los `requirements*.txt` va con `requirements.lock`
+  regenerado (comando en el README, «Tests y CI»). El lock fija las versiones con que se midió
+  `eval/`; si sube llama-index, FlagEmbedding, transformers, torch o Docling, corre la evaluación
+  que corresponda.
 - **Evaluación**: los resultados de `eval/resultados/*.json` se versionan. Si vuelves a correr un
   script, actualiza la tabla correspondiente de `eval/README.md` con la fecha.
 - **Migraciones**: nunca edites una migración ya aplicada; agrega una nueva con fecha en el nombre.
