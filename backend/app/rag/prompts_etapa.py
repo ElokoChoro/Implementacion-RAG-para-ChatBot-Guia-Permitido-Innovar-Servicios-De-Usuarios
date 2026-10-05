@@ -34,7 +34,7 @@ Versiones:
 from __future__ import annotations
 
 from app.rag import guia
-from app.rag.prompts import MENSAJE_NO_ENCONTRADA
+from app.rag.prompts import MENSAJE_NO_ENCONTRADA, datos_etapa
 
 VERSION_PROMPT_ETAPA = "etapa-v1"
 
@@ -70,11 +70,9 @@ USUARIO_ETAPA = """{etapa}
 Sugiere al equipo los próximos pasos para esta etapa."""
 
 # Contexto de la etapa, al inicio del mensaje de usuario.
+# Los datos de la etapa son los mismos del prompt de preguntas (prompts.datos_etapa).
 ETAPA = """Etapa actual del proyecto: {numero} {nombre}
-- Propósito {proposito}: {nombre_proposito}
-- Actividad de la guía: {actividad}
-- Objetivo de la etapa: {objetivo}
-- {rotulo_herramientas}: {herramientas}
+{datos}
 El contexto de la etapa no es un fragmento de la guía y no se cita."""
 
 # Cuando no hay fragmentos de la etapa en el índice (por ejemplo, un índice sin el
@@ -91,9 +89,4 @@ def texto_etapa(numero: int, proposito: int = 1) -> str:
     e = guia.etapa(numero, proposito)
     if e is None:
         raise ValueError(f"La etapa debe ser un número de 1 a {len(guia.PROPOSITOS[proposito].etapas)}.")
-    herramientas = [nombre for _, nombre in e.herramientas]
-    return ETAPA.format(
-        numero=e.numero, nombre=e.nombre, proposito=proposito,
-        nombre_proposito=guia.PROPOSITOS[proposito].nombre, actividad=e.actividad,
-        objetivo=e.objetivo, herramientas=", ".join(herramientas),
-        rotulo_herramientas="Herramientas de la etapa" if len(herramientas) > 1 else "Herramienta de la etapa")
+    return ETAPA.format(numero=e.numero, nombre=e.nombre, datos=datos_etapa(e, proposito))

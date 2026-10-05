@@ -7,7 +7,7 @@ a la guía. Es lo que devuelve `POST /ia/sugerir-proximos-pasos` (api.py).
      búsqueda no depende de lo que escriba el equipo y no se puede desviar con
      él. Con el filtro, los 4 fragmentos son de la actividad de la etapa en las
      7 etapas; sin él, en 5 de 7 se cuela otra actividad (eval/README.md).
-  2. Umbral: se descartan los fragmentos bajo UMBRAL, igual que en generar.py.
+  2. Umbral: se descartan los fragmentos bajo UMBRAL, igual que en generar.py (flujo.py).
   3. Generación: el LLM recibe el contexto de la etapa (guia.py), los fragmentos
      y lo que el equipo registró del proyecto (`contexto` y `datos_etapa`), y
      redacta con el formato de prompts_etapa.py.
@@ -34,13 +34,11 @@ import re
 import time
 
 from llama_index.core.llms import ChatMessage, MessageRole
-from llama_index.core.postprocessor import SimilarityPostprocessor
-from llama_index.core.schema import NodeWithScore, QueryBundle
+from llama_index.core.schema import NodeWithScore
 
 from app.rag import config, guia, registro
 from app.rag.contrato import Respuesta
-from app.rag.generar import _contexto, _fuente, chat, confianza
-from app.rag.prompts import MENSAJE_NO_ENCONTRADA
+from app.rag.flujo import armar_respuesta, chat, contexto as contexto_guia, sobre_el_umbral
 from app.rag.prompts_etapa import (
     PROYECTO_VACIO,
     SIN_FRAGMENTOS,
@@ -145,10 +143,12 @@ def consulta(etapa: int) -> str:
 
 def mensajes(etapa: int, nodos: list[NodeWithScore], proyecto: str) -> list[ChatMessage]:
     """Mensajes de sistema y de usuario del asistente por etapa."""
+    # contexto_guia: flujo.contexto con otro nombre, porque `contexto` en sugerir() es lo que
+    # envía la plataforma del proyecto.
     return [
         ChatMessage(role=MessageRole.SYSTEM, content=SISTEMA_ETAPA),
         ChatMessage(role=MessageRole.USER, content=USUARIO_ETAPA.format(
-            etapa=texto_etapa(etapa), proyecto=proyecto, contexto=_contexto(nodos))),
+            etapa=texto_etapa(etapa), proyecto=proyecto, contexto=contexto_guia(nodos))),
     ]
 
 
@@ -160,11 +160,7 @@ def fuentes_prompt(nodos: list[NodeWithScore]) -> set[str]:
 def fragmentos(etapa: int) -> tuple[list[NodeWithScore], float | None]:
     """Fragmentos de la etapa que pasan el umbral y el mejor puntaje del reranker."""
     q = consulta(etapa)
-    nodos = recuperar(q, etapa, usar_reranker=True)
-    mejor = round(float(nodos[0].score), 3) if nodos else None
-    nodos = SimilarityPostprocessor(similarity_cutoff=config.UMBRAL).postprocess_nodes(
-        nodos, query_bundle=QueryBundle(q))
-    return nodos, mejor
+    return sobre_el_umbral(recuperar(q, etapa, usar_reranker=True), q)
 
 
 def sugerir(etapa: int, contexto: str | dict | None = None,
@@ -184,24 +180,14 @@ def sugerir(etapa: int, contexto: str | dict | None = None,
                "mejor": mejor, "fragmentos": len(nodos), "t_recuperacion_s": round(time.time() - t0, 1)}
     if not nodos:
         log.info(registro.campos(**tiempos, llm="no", encontrada=False))
-        return Respuesta(resultado=SIN_FRAGMENTOS, encontrada=False, confianza=None,
-                         version_prompt=VERSION_PROMPT_ETAPA, puntaje=mejor,
-                         latencia_s=round(time.time() - t0, 1))
+        return armar_respuesta(SIN_FRAGMENTOS, nodos, mejor, t0, version_prompt=VERSION_PROMPT_ETAPA)
 
     t1 = time.time()
     texto = limpiar_citas(chat(mensajes(etapa, nodos, proyecto)))
-    texto = ajustar_citas(texto, fuentes_prompt(nodos))
-    encontrada = not texto.startswith(MENSAJE_NO_ENCONTRADA)
-    log.info(registro.campos(**tiempos, t_llm_s=round(time.time() - t1, 1), encontrada=encontrada))
-    return Respuesta(
-        resultado=texto,
-        encontrada=encontrada,
-        confianza=confianza(mejor) if encontrada else None,
-        fuentes=[_fuente(n) for n in nodos] if encontrada else [],
-        version_prompt=VERSION_PROMPT_ETAPA,
-        puntaje=mejor,
-        latencia_s=round(time.time() - t0, 1),
-    )
+    r = armar_respuesta(ajustar_citas(texto, fuentes_prompt(nodos)), nodos, mejor, t0,
+                        version_prompt=VERSION_PROMPT_ETAPA)
+    log.info(registro.campos(**tiempos, t_llm_s=round(time.time() - t1, 1), encontrada=r.encontrada))
+    return r
 
 
 def main():

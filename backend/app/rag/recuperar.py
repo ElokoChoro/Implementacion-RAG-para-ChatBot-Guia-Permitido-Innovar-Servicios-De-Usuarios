@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import time
 
-from llama_index.core.schema import NodeWithScore, QueryBundle
+from llama_index.core.schema import NodeWithScore
 from llama_index.core.vector_stores import FilterOperator, MetadataFilter, MetadataFilters
 from sqlalchemy.exc import OperationalError
 
@@ -59,9 +59,7 @@ def recuperar(pregunta: str, etapa: int | None = None, top_k: int = config.TOP_K
                            "SUPABASE_DB_URL sea la vigente.") from e
     if not usar_reranker:
         return nodos
-    reranker = reordenador()
-    reranker.top_n = top_k
-    return reranker.postprocess_nodes(nodos, query_bundle=QueryBundle(pregunta))
+    return reordenador().reordenar(nodos, pregunta, top_k)
 
 
 def precargar() -> None:

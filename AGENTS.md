@@ -12,7 +12,7 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 
 | Carpeta | Contenido |
 | --- | --- |
-| `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador`; log por consulta: `registro` |
+| `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Umbral, llamada al LLM y armado de la respuesta, comunes a los dos: `flujo`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador`; log por consulta: `registro` |
 | `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y `GET /salud`; atiende las solicitudes de a una, con tope de cola (`COLA_MAXIMA`, `ESPERA_TURNO_S`) y 503 si no hay turno. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
@@ -70,7 +70,7 @@ Requisitos de los modelos: la primera ejecución descarga bge-m3 y el reranker d
 (~2,3 GB cada uno). La generación necesita Ollama corriendo con `ollama pull gemma3:4b` o, con
 `PROVEEDOR_LLM=openai`, otro servidor compatible con la API de OpenAI, en el mismo equipo o en otro
 (README, «LLM en cada equipo»). Todo cliente del LLM se crea en `llm()` y sus errores se traducen
-en `generar._generar()`: un proveedor nuevo va en esos dos lugares. El equipo
+en `flujo.chat()`: un proveedor nuevo va en esos dos lugares. El equipo
 de referencia es un Mac M2 de 8 GB: no cargues más modelos de los necesarios en un mismo proceso y
 usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean una sola instancia.
 
@@ -82,7 +82,8 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   `.env.example` explica cómo guardarla.
 - **Cambiar `EMBEDDINGS`, `CHUNK_TOKENS`, `CHUNK_OVERLAP` o `VERSION_CORPUS`** → volver a indexar.
   En Chroma cada combinación tiene su colección (`config.coleccion()`); en pgvector hay una sola
-  tabla que se recarga completa.
+  tabla que se recarga completa. `indice()` abre el índice una vez por proceso: si indexas con la
+  API corriendo, reiníciala.
 - **Cambiar el modelo de embeddings** (y con él `EMBEDDINGS_DIM`) → migración nueva en
   `supabase/migrations/` con la dimensión del modelo.
 - **Cambiar `RERANKER`** → recalibrar `UMBRAL`, `CONFIANZA_MEDIA` y `CONFIANZA_ALTA` con
@@ -91,8 +92,10 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   de cada etapa, nombre del propósito y nombres de `HERRAMIENTAS`): todo cambio sube `VERSION_PROMPT` y se anota en la lista de versiones
   del docstring. Lo mismo con el prompt del asistente por etapa (`prompts_etapa.py`,
   `VERSION_PROMPT_ETAPA`), que también recibe esos datos de `guia.py` y se prueba con
-  `eval/probar_asistente_etapa.py`. `generar.py` detecta el rechazo del LLM buscando `MENSAJE_NO_ENCONTRADA` al
-  **inicio** de la respuesta: si cambias esa frase o la regla del caso C, revisa los dos archivos.
+  `eval/probar_asistente_etapa.py`. `test_huella_prompt.py` falla si cambian los mensajes al LLM sin
+  subir la versión: al subirla, agrega la huella nueva. `flujo.armar_respuesta()` detecta el rechazo
+  del LLM buscando `MENSAJE_NO_ENCONTRADA` al **inicio** de la respuesta: si cambias esa frase o la
+  regla del caso C, revisa `prompts.py` y `flujo.py`.
 - **Confianza y fuentes** salen del puntaje del reranker y de los metadatos de los fragmentos, nunca
   del texto del LLM. `Respuesta` en `contrato.py` tiene la forma del contrato `POST /ia/consultar-guia`:
   no cambies sus campos sin acordarlo. Los tests comparan sus campos con `CAMPOS_CONTRATO`

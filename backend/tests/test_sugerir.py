@@ -169,10 +169,11 @@ def test_respuesta_con_la_forma_del_contrato(monkeypatch: pytest.MonkeyPatch) ->
     assert {"resultado", "encontrada", "confianza", "fuentes", "modelo", "version_prompt", "modo"} <= campos
 
 
-def test_chat_de_generar_se_reutiliza(monkeypatch: pytest.MonkeyPatch) -> None:
-    # sugerir usa la misma llamada al LLM que generar, con sus mensajes de error.
-    from app.rag import generar
+def test_chat_comun_con_generar(monkeypatch: pytest.MonkeyPatch) -> None:
+    # sugerir usa la misma llamada al LLM que generar (flujo.py), con sus mensajes de error.
+    from app.rag import flujo, generar
 
     falso = SimpleNamespace(chat=lambda mensajes: SimpleNamespace(message=SimpleNamespace(content=" Hola. ")))
-    monkeypatch.setattr(generar, "llm", lambda: falso)
-    assert generar.chat([]) == "Hola."
+    monkeypatch.setattr(flujo, "llm", lambda: falso)
+    assert sugerir.chat is generar.chat is flujo.chat
+    assert flujo.chat([]) == "Hola."

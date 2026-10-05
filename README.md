@@ -248,6 +248,8 @@ ollama pull gemma3:4b
 .venv/bin/python -m ingesta.indexar
 ```
 
+Si la API está corriendo, reiníciala después de indexar: abre el índice una sola vez.
+
 **4. Pregunta** (desde `backend/`):
 
 ```bash
