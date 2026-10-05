@@ -46,8 +46,9 @@ def _motor():
 
     if not (db_url := config.supabase_db_url()):
         raise RuntimeError("Falta SUPABASE_DB_URL. Cópiala desde el panel de Supabase (Project "
-                           "Settings › Database › Connection string, Session pooler) y guárdala en "
-                           "el llavero: cd backend && python -m app.rag.secretos guardar SUPABASE_DB_URL")
+                           "Settings › Database › Connection string, Session pooler) y guárdala "
+                           "(en el llavero o, si no hay, en .env): "
+                           "cd backend && python -m app.rag.secretos guardar SUPABASE_DB_URL")
     url = sqlalchemy.make_url(db_url).set(drivername="postgresql+psycopg2")
     return sqlalchemy.create_engine(url, pool_pre_ping=True)
 

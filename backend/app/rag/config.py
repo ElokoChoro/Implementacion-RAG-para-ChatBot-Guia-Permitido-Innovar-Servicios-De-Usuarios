@@ -24,15 +24,15 @@ USAR_RERANKER          Si es false, se entregan los TOP_K más similares sin reo
 ALMACEN                Vector store: «chroma» (local, por defecto) o «pgvector» (Supabase).
 RUTA_CHROMA            Carpeta donde Chroma guarda el índice.
 SUPABASE_DB_URL        Connection string de Postgres de Supabase (solo con ALMACEN=pgvector).
-                       Es una credencial: va en el llavero del sistema (ver secretos.py);
-                       la variable de entorno solo se usa donde no hay llavero (CI, servidor).
+                       Es una credencial: va en el llavero del sistema o, en equipos sin
+                       llavero, en .env (python -m app.rag.secretos guardar elige; ver secretos.py).
 TABLA_PGVECTOR         Tabla del índice en pgvector, sin el prefijo «data_» de PGVectorStore.
 PROVEEDOR_LLM          «ollama» (por defecto) u «openai»: cualquier servidor compatible con
                        la API de OpenAI, como LM Studio o llama.cpp.
 OLLAMA_URL             Dirección del servidor de Ollama (con PROVEEDOR_LLM=ollama).
 LLM_URL                URL base del servidor compatible con OpenAI (con PROVEEDOR_LLM=openai).
 LLM_API_KEY            Clave de ese servidor; los locales no la piden. Si es un servicio en la
-                       nube, es una credencial: va en el llavero, como SUPABASE_DB_URL.
+                       nube, es una credencial: se guarda como SUPABASE_DB_URL.
 LLM                    Modelo que redacta la respuesta («gemma3:4b»), con el nombre que
                        le da el servidor.
 TEMPERATURE            Aleatoriedad del LLM; baja para que se apegue a la guía.
@@ -48,8 +48,8 @@ MODO                   «local» (por defecto): responde con los modelos. «simu
                        fijas con la forma del contrato, sin modelos (ver simulador.py).
 SIMULADOR_DEMORA_S     Segundos que espera el simulador antes de responder (0 por defecto).
 CLAVE_SERVICIO         Clave que la API exige como «Authorization: Bearer <clave>». Vacía: la API
-                       no pide clave (uso local). Es una credencial: va en el llavero
-                       (ver secretos.py); la variable de entorno solo donde no hay llavero.
+                       no pide clave (uso local). Es una credencial: se guarda como
+                       SUPABASE_DB_URL; en un servidor, como variable de entorno.
 
 Si cambian EMBEDDINGS, CHUNK_TOKENS, CHUNK_OVERLAP o VERSION_CORPUS, hay que
 volver a indexar (python -m ingesta.indexar). En Chroma cada combinación usa su
@@ -58,7 +58,8 @@ En pgvector hay una sola tabla, que se recarga completa al indexar.
 
 Las variables también se leen del archivo .env de la raíz del repositorio (ver
 .env.example); las que ya están definidas en el entorno tienen prioridad. Las
-credenciales no van en .env sino en el llavero del sistema (ver secretos.py).
+credenciales van en el llavero del sistema si el equipo tiene uno, y si no en
+.env (ver secretos.py).
 """
 from __future__ import annotations
 
@@ -127,9 +128,9 @@ RUTA_CHROMA = Path(_env("RUTA_CHROMA", str(RAIZ / "storage" / "chroma")))
 # Connection string de Supabase (Project Settings › Database › Connection string,
 # «Session pooler», que funciona con IPv4), con la contraseña de la base:
 #   postgresql://postgres.<ref>:<contraseña>@aws-0-<región>.pooler.supabase.com:5432/postgres
-# Da acceso completo a la base: se guarda en el llavero del sistema
-# (python -m app.rag.secretos guardar SUPABASE_DB_URL), nunca en el frontend. Se lee
-# recién al abrir pgvector, para que con Chroma no se consulte el llavero.
+# Da acceso completo a la base: se guarda con python -m app.rag.secretos guardar
+# SUPABASE_DB_URL, que usa el llavero del sistema o, si no hay, .env; nunca va en el
+# frontend. Se lee recién al abrir pgvector, para que con Chroma no se consulte el llavero.
 
 
 def llm_api_key() -> str:

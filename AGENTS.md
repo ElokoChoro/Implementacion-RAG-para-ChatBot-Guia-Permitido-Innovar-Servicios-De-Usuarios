@@ -78,8 +78,8 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
 
 - **Configuración**: todo parámetro va en `backend/app/rag/config.py`, leído con `_env()` para que
   se pueda cambiar por variable de entorno. Una variable nueva se documenta en el docstring del
-  módulo. Si es una credencial, no se lee con `_env()` sino del llavero (ver `secretos.py`), y
-  `.env.example` explica cómo guardarla.
+  módulo. Si es una credencial, se lee del entorno o `.env` y, si no está, del llavero (ver
+  `secretos.py`), y `.env.example` explica cómo guardarla.
 - **Cambiar `EMBEDDINGS`, `CHUNK_TOKENS`, `CHUNK_OVERLAP` o `VERSION_CORPUS`** → volver a indexar.
   En Chroma cada combinación tiene su colección (`config.coleccion()`); en pgvector hay una sola
   tabla que se recarga completa.
@@ -115,10 +115,11 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
 
 ## Seguridad y datos
 
-- `SUPABASE_DB_URL` da acceso completo a la base: va en el llavero del sistema
-  (`python -m app.rag.secretos guardar SUPABASE_DB_URL`, desde `backend/`), no en `.env` ni en el
-  frontend. El código la lee con `config.supabase_db_url()`; la variable de entorno solo se usa
-  donde no hay llavero (CI, servidor). Una credencial nueva se agrega a `SECRETOS` en `secretos.py`.
+- `SUPABASE_DB_URL` da acceso completo a la base: se guarda con
+  `python -m app.rag.secretos guardar SUPABASE_DB_URL` (desde `backend/`), que usa el llavero del
+  sistema si el equipo tiene uno y si no la escribe en `.env` con permisos 600 (WSL, Linux sin
+  escritorio). Nunca va en el frontend. El código la lee con `config.supabase_db_url()`: primero el
+  entorno o `.env`, después el llavero. Una credencial nueva se agrega a `SECRETOS` en `secretos.py`.
   Vite expone al navegador las variables con prefijo `VITE_`: ninguna credencial lo lleva.
 - No se versionan el PDF de la guía, `data/docling/` (salida cruda de Docling) ni `storage/`
   (índice de Chroma). Se regeneran con los scripts de `ingesta/`.
