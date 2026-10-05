@@ -11,14 +11,11 @@ from types import SimpleNamespace
 import httpx
 import openai
 import pytest
-from conftest import fragmento
+from conftest import CAMPOS_CONTRATO, fragmento
 
 from app.rag import config, generar, modelos
+from app.rag.contrato import Respuesta
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
-
-# Campos de `RespuestaGuia` en src/lib/rag.ts: el contrato de POST /ia/consultar-guia.
-CAMPOS_CONTRATO = {"resultado", "encontrada", "confianza", "fuentes", "modelo", "version_prompt",
-                   "modo", "puntaje", "latencia_s"}
 
 
 def _sin_llm(*_args) -> str:
@@ -128,7 +125,7 @@ def test_respuesta_tiene_los_campos_del_contrato(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(generar, "_generar", lambda *a: "Respuesta.")
 
     assert set(generar.responder("¿Qué es?").a_dict()) == CAMPOS_CONTRATO
-    assert set(generar.Respuesta(resultado="", encontrada=False, confianza=None).a_dict()) == CAMPOS_CONTRATO
+    assert set(Respuesta(resultado="", encontrada=False, confianza=None).a_dict()) == CAMPOS_CONTRATO
 
 
 def test_texto_etapa() -> None:

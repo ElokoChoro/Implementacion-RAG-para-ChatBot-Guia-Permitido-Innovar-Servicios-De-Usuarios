@@ -1,6 +1,6 @@
 import type { Fuente } from '../types'
 
-// Respuesta de POST /ia/consultar-guia (backend/app/rag/generar.py › Respuesta)
+// Respuesta de POST /ia/consultar-guia (backend/app/rag/contrato.py › Respuesta)
 export type RespuestaGuia = {
   resultado: string
   encontrada: boolean

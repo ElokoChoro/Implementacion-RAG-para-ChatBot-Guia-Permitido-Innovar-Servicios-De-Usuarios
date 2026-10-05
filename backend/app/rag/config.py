@@ -44,6 +44,12 @@ MAX_CARACTERES_PROYECTO  Largo máximo del contexto del proyecto que recibe el a
 UMBRAL                 Puntaje mínimo del reranker (0 a 1) para que un fragmento llegue al LLM.
 CONFIANZA_MEDIA        Mejor puntaje desde el que la confianza es «media».
 CONFIANZA_ALTA         Mejor puntaje desde el que la confianza es «alta».
+MODO                   «local» (por defecto): responde con los modelos. «simulador»: respuestas
+                       fijas con la forma del contrato, sin modelos (ver simulador.py).
+SIMULADOR_DEMORA_S     Segundos que espera el simulador antes de responder (0 por defecto).
+CLAVE_SERVICIO         Clave que la API exige como «Authorization: Bearer <clave>». Vacía: la API
+                       no pide clave (uso local). Es una credencial: va en el llavero
+                       (ver secretos.py); la variable de entorno solo donde no hay llavero.
 
 Si cambian EMBEDDINGS, CHUNK_TOKENS, CHUNK_OVERLAP o VERSION_CORPUS, hay que
 volver a indexar (python -m ingesta.indexar). En Chroma cada combinación usa su
@@ -142,6 +148,11 @@ def supabase_db_url() -> str:
     return _env("SUPABASE_DB_URL", "") or secretos.leer("SUPABASE_DB_URL") or ""
 
 
+def clave_servicio() -> str:
+    """CLAVE_SERVICIO del entorno (o .env) si está; si no, del llavero. Vacía: la API no pide clave."""
+    return _env("CLAVE_SERVICIO", "") or secretos.leer("CLAVE_SERVICIO") or ""
+
+
 # PGVectorStore le antepone «data_»: la tabla real es public.data_guia_fragmentos.
 TABLA_PGVECTOR = _env("TABLA_PGVECTOR", "guia_fragmentos")
 
@@ -177,6 +188,14 @@ MAX_CARACTERES_PROYECTO = _env("MAX_CARACTERES_PROYECTO", 1500, int)
 UMBRAL = _env("UMBRAL", 0.5, float)
 CONFIANZA_MEDIA = _env("CONFIANZA_MEDIA", 0.7, float)
 CONFIANZA_ALTA = _env("CONFIANZA_ALTA", 0.9, float)
+
+# ---- API y simulador ------------------------------------------------------------
+# El simulador devuelve respuestas fijas con la forma del contrato y no importa
+# LlamaIndex ni los modelos: corre con backend/requirements-simulador.txt en un
+# servidor sin GPU (p. ej. Render, plan gratuito), para que la plataforma integre
+# la API sin esperar al equipo que tiene los modelos.
+MODO = _env("MODO", "local")
+SIMULADOR_DEMORA_S = _env("SIMULADOR_DEMORA_S", 0.0, float)
 
 
 def coleccion() -> str:

@@ -1,0 +1,56 @@
+"""
+Forma de la respuesta de la API (`POST /ia/consultar-guia`), acordada con la plataforma.
+
+Va en un módulo aparte, sin LlamaIndex ni modelos, para que la usen igual
+generar.py (respuestas reales), sugerir.py (asistente por etapa) y simulador.py
+(respuestas fijas para integrar la plataforma sin modelos). Así las tres
+devuelven siempre los mismos campos.
+
+No cambies los campos sin acordarlo: test_generar.py los compara con
+`RespuestaGuia` de src/lib/rag.ts. Un campo nuevo solo puede agregarse, y con
+valor por defecto, para no romper a quien ya consume la API.
+
+Para ver los campos y un ejemplo, desde backend/:
+    python -m app.rag.contrato
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from dataclasses import asdict, dataclass, field
+
+from app.rag import config
+from app.rag.prompts import VERSION_PROMPT
+
+
+@dataclass
+class Respuesta:
+    """Respuesta con la forma del contrato de `POST /ia/consultar-guia`."""
+
+    resultado: str
+    encontrada: bool
+    confianza: str | None          # «alta», «media» o «baja»; None si no se encontró
+    fuentes: list[dict] = field(default_factory=list)
+    modelo: str = config.LLM
+    version_prompt: str = VERSION_PROMPT
+    modo: str = "local"            # «local» (modelos) o «simulador» (respuestas fijas)
+    puntaje: float | None = None   # mejor puntaje del reranker, para auditar el umbral
+    latencia_s: float = 0.0
+
+    def a_dict(self) -> dict:
+        return asdict(self)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.parse_args()
+    ejemplo = Respuesta(resultado="Texto de la respuesta, con sus citas.", encontrada=True, confianza="alta",
+                        fuentes=[{"seccion": "Plano del servicio", "pagina": 120,
+                                  "fuente": "Actividades y herramientas › Plano del servicio, p. 120",
+                                  "fragmento": "Texto del fragmento usado…", "puntaje": 0.93}],
+                        puntaje=0.93, latencia_s=12.3)
+    print(json.dumps(ejemplo.a_dict(), ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

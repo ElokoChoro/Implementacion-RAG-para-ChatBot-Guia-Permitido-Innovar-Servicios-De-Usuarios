@@ -1,0 +1,7 @@
+# Solo la API con MODO=simulador (app/rag/simulador.py): respuestas fijas, sin modelos.
+# Para un servidor sin GPU, por ejemplo Render en el plan gratuito. Python 3.12.
+# Las versiones son las mismas de requirements.txt.
+fastapi>=0.142,<0.143
+uvicorn>=0.54,<0.55
+# Lee la configuración del .env de la raíz
+python-dotenv>=1.2,<2
