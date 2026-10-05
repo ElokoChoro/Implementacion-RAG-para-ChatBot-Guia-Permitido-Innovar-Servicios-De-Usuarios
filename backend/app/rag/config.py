@@ -24,6 +24,8 @@ USAR_RERANKER          Si es false, se entregan los TOP_K más similares sin reo
 ALMACEN                Vector store: «chroma» (local, por defecto) o «pgvector» (Supabase).
 RUTA_CHROMA            Carpeta donde Chroma guarda el índice.
 SUPABASE_DB_URL        Connection string de Postgres de Supabase (solo con ALMACEN=pgvector).
+                       Es una credencial: va en el llavero del sistema (ver secretos.py);
+                       la variable de entorno solo se usa donde no hay llavero (CI, servidor).
 TABLA_PGVECTOR         Tabla del índice en pgvector, sin el prefijo «data_» de PGVectorStore.
 OLLAMA_URL             Dirección del servidor de Ollama.
 LLM                    Modelo de Ollama que redacta la respuesta («gemma3:4b»).
@@ -42,7 +44,8 @@ propia colección (ver `coleccion()`), así que los índices anteriores no se pi
 En pgvector hay una sola tabla, que se recarga completa al indexar.
 
 Las variables también se leen del archivo .env de la raíz del repositorio (ver
-.env.example); las que ya están definidas en el entorno tienen prioridad.
+.env.example); las que ya están definidas en el entorno tienen prioridad. Las
+credenciales no van en .env sino en el llavero del sistema (ver secretos.py).
 """
 from __future__ import annotations
 
@@ -52,6 +55,8 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+
+from app.rag import secretos
 
 RAIZ = Path(__file__).resolve().parents[3]  # raíz del repositorio
 load_dotenv(RAIZ / ".env")
@@ -109,8 +114,16 @@ RUTA_CHROMA = Path(_env("RUTA_CHROMA", str(RAIZ / "storage" / "chroma")))
 # Connection string de Supabase (Project Settings › Database › Connection string,
 # «Session pooler», que funciona con IPv4), con la contraseña de la base:
 #   postgresql://postgres.<ref>:<contraseña>@aws-0-<región>.pooler.supabase.com:5432/postgres
-# Da acceso completo a la base: va solo en .env, nunca en el frontend.
-SUPABASE_DB_URL = _env("SUPABASE_DB_URL", "")
+# Da acceso completo a la base: se guarda en el llavero del sistema
+# (python -m app.rag.secretos guardar SUPABASE_DB_URL), nunca en el frontend. Se lee
+# recién al abrir pgvector, para que con Chroma no se consulte el llavero.
+
+
+def supabase_db_url() -> str:
+    """SUPABASE_DB_URL del entorno (o .env) si está; si no, del llavero. Vacío si no está en ninguno."""
+    return _env("SUPABASE_DB_URL", "") or secretos.leer("SUPABASE_DB_URL") or ""
+
+
 # PGVectorStore le antepone «data_»: la tabla real es public.data_guia_fragmentos.
 TABLA_PGVECTOR = _env("TABLA_PGVECTOR", "guia_fragmentos")
 
