@@ -12,9 +12,7 @@ config.py busca cada credencial en este orden:
   2. llavero del sistema, en el servicio SERVICIO y con el nombre de la variable.
 
 Las credenciales son SUPABASE_DB_URL, LLM_API_KEY (solo si el LLM es un servicio
-que pide clave) y CLAVE_SERVICIO (la que la API le exige a la plataforma). Las
-claves VITE_ quedan en .env: Vite las incrusta en el navegador, así que no son secretas (la anon key es
-pública y la protege RLS).
+que pide clave) y CLAVE_SERVICIO (la que la API le exige a la plataforma).
 
 Uso, desde backend/:
     python -m app.rag.secretos guardar SUPABASE_DB_URL     # pide el valor sin mostrarlo

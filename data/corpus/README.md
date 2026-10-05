@@ -12,7 +12,7 @@ Este corpus es una obra derivada y se comparte con la misma licencia, sin fines 
 
 | Versión | Extracción | Archivo |
 | --- | --- | --- |
-| `v1` | Docling 2.131 `standard`, sin OCR; págs. 13 a 161 | `v1/paginas.jsonl` |
+| `v1` | Docling 2.131 `standard`, sin OCR; págs. 13 a 161. Ya no se versiona: `v2` lo contiene completo (está en el historial de git, en el commit `21eed4b`) | — |
 | `v2` | Igual que `v1`, más créditos (pág. 2), prólogos (8 a 11) y «¿Cómo elaboramos esta guía?» (162 y 163). Las páginas de `v1` no cambian | `v2/paginas.jsonl` |
 
 Cada línea de `paginas.jsonl` es una página (en `v2`: págs. 2, 8 a 11 y 13 a 163, sin portadillas casi vacías):

@@ -16,13 +16,12 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 | `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia` y `GET /salud`; atiende las preguntas de a una. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
-| `data/corpus/v2/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v1/` queda como referencia |
+| `data/corpus/v2/` | Corpus vigente, una página por línea (`paginas.jsonl`) |
 | `data/fuentes/guia.yaml` | Manifiesto y SHA-256 del PDF (el PDF no se versiona) |
 | `eval/` | Set de preguntas, scripts de comparación y calibración, resultados en `eval/resultados/` |
 | `supabase/migrations/` | Tabla `public.data_guia_fragmentos` con pgvector |
 | `src/` | Chatbot de prueba (React 19 + Vite + TypeScript). Llama a la API mediante el proxy de Vite (`/ia` → puerto 8000) |
 | `.github/` | CI (`ruff`, `pytest`, `oxlint`, `tsc` y `vite build` en cada PR) y Dependabot |
-| `Modelfile`, `docs/` | Prompt inicial para Ollama. **No es el prompt vigente**: el que usa el backend está en `backend/app/rag/prompts.py` |
 
 Pipeline: Docling `standard` sin OCR → `SentenceSplitter` 400/50 → `BAAI/bge-m3` → Chroma o
 pgvector (coseno, 20 candidatos) → `BAAI/bge-reranker-v2-m3` (top 4) → umbral 0,5 →
@@ -120,8 +119,7 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   (`python -m app.rag.secretos guardar SUPABASE_DB_URL`, desde `backend/`), no en `.env` ni en el
   frontend. El código la lee con `config.supabase_db_url()`; la variable de entorno solo se usa
   donde no hay llavero (CI, servidor). Una credencial nueva se agrega a `SECRETOS` en `secretos.py`.
-  Solo las variables con prefijo `VITE_` llegan al navegador, y ahí solo va la clave
-  anon.
+  Vite expone al navegador las variables con prefijo `VITE_`: ninguna credencial lo lleva.
 - No se versionan el PDF de la guía, `data/docling/` (salida cruda de Docling) ni `storage/`
   (índice de Chroma). Se regeneran con los scripts de `ingesta/`.
 - Todo corre en local: no agregues llamadas a APIs externas con el texto de la guía o las
