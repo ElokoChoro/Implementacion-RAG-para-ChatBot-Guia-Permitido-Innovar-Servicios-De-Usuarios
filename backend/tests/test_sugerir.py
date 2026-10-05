@@ -170,7 +170,7 @@ def test_respuesta_con_la_forma_del_contrato(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_chat_de_generar_se_reutiliza(monkeypatch: pytest.MonkeyPatch) -> None:
-    # sugerir usa la misma llamada a Ollama que generar, con sus mensajes de error.
+    # sugerir usa la misma llamada al LLM que generar, con sus mensajes de error.
     from app.rag import generar
 
     falso = SimpleNamespace(chat=lambda mensajes: SimpleNamespace(message=SimpleNamespace(content=" Hola. ")))

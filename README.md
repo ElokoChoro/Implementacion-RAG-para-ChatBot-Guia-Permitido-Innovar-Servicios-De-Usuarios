@@ -25,6 +25,7 @@ cuando la guía no responde y corre entero con modelos locales.
 [Cómo funciona](#-cómo-funciona) ·
 [Resultados](#-resultados) ·
 [Inicio rápido](#-inicio-rápido) ·
+[LLM en cada equipo](#-llm-en-cada-equipo) ·
 [Supabase](#-índice-en-supabase-pgvector) ·
 [Evaluación](eval/README.md) ·
 [Para agentes de código](AGENTS.md)
@@ -125,7 +126,7 @@ flowchart LR
 | 🗄️ Vector store | Chroma local o pgvector en Supabase, distancia coseno | `ALMACEN`, `RUTA_CHROMA`, `SUPABASE_DB_URL` |
 | 🏅 Reranker | `BAAI/bge-reranker-v2-m3`, puntaje 0–1, 20 candidatos → 4 | `RERANKER`, `RERANKER_CANDIDATOS`, `TOP_K`, `USAR_RERANKER` |
 | 🚧 Umbral | Puntaje del reranker ≥ 0,5; si nada llega, se rechaza sin LLM | `UMBRAL` |
-| 🦙 LLM | `gemma3:4b` en Ollama, temperature 0,1, contexto de 4096 tokens | `LLM`, `TEMPERATURE`, `CONTEXTO_TOKENS`, `MAX_TOKENS_RESPUESTA` |
+| 🦙 LLM | `gemma3:4b` en Ollama, temperature 0,1, contexto de 4096 tokens; o cualquier servidor compatible con OpenAI | `PROVEEDOR_LLM`, `LLM`, `OLLAMA_URL`, `LLM_URL`, `TEMPERATURE`, `CONTEXTO_TOKENS`, `MAX_TOKENS_RESPUESTA` |
 | 🎚️ Confianza | Mejor puntaje del reranker: `alta` ≥ 0,9, `media` ≥ 0,7, `baja` el resto | `CONFIANZA_ALTA`, `CONFIANZA_MEDIA` |
 | 🖥️ Hardware | `mps`, `cuda:0` o `cpu`; fp16 por defecto | `DISPOSITIVO`, `FP16` |
 
@@ -218,8 +219,9 @@ El índice se reconstruye desde el corpus con un comando; el PDF se identifica p
 ## 🚀 Inicio rápido
 
 > [!IMPORTANT]
-> Necesitas **Python 3.12** y [Ollama](https://ollama.com/download). La primera ejecución descarga
-> bge-m3 y el reranker desde Hugging Face (~2,3 GB cada uno); después corren sin red.
+> Necesitas **Python 3.12** y [Ollama](https://ollama.com/download). Si Ollama no te funciona, usa
+> LM Studio u otro servidor (ver [LLM en cada equipo](#-llm-en-cada-equipo)). La primera ejecución
+> descarga bge-m3 y el reranker desde Hugging Face (~2,3 GB cada uno); después corren sin red.
 
 **1. Crea el entorno e instala las dependencias**
 
@@ -233,7 +235,7 @@ python3.12 -m venv .venv
 
 La consulta sola (sin Docling) necesita únicamente `backend/requirements.txt`.
 
-**2. Descarga el LLM (~3,3 GB)**
+**2. Descarga el LLM (~3,3 GB).** Con LM Studio, sigue [LLM en cada equipo](#-llm-en-cada-equipo).
 
 ```bash
 ollama pull gemma3:4b
@@ -301,6 +303,92 @@ muestra cómo quedó una página. Un cambio que altere el corpus va en una versi
 (`data/corpus/v3/`), no sobre `v2`.
 
 </details>
+
+---
+
+## 🦙 LLM en cada equipo
+
+Cada equipo elige en su `.env` qué LLM redacta las respuestas, sin tocar el código. El archivo es el
+mismo en Mac, Windows y Linux: copia `.env.example` como `.env` y cambia solo lo que necesites. La
+búsqueda no cambia (bge-m3, reranker, umbral); solo cambia quién redacta.
+
+| Caso | `PROVEEDOR_LLM` | Qué más va en `.env` |
+| --- | --- | --- |
+| Ollama en tu equipo (por defecto) | `ollama` | Nada |
+| Ollama en otro equipo | `ollama` | `OLLAMA_URL=http://<IP>:11434` |
+| LM Studio u otro servidor compatible con la API de OpenAI | `openai` | `LLM_URL` y `LLM` |
+
+### Si Ollama no te funciona: LM Studio
+
+[LM Studio](https://lmstudio.ai) es una aplicación con interfaz gráfica para Mac, Windows y Linux.
+
+1. Descarga un modelo desde LM Studio. Para comparar con el actual, uno de la familia Gemma 3; con
+   16 GB de memoria cabe el de 12B.
+2. Al cargarlo, deja el largo de contexto en 4096 tokens o más, y pon ese mismo valor en
+   `CONTEXTO_TOKENS`.
+3. Inicia el servidor local en la pestaña **Developer**. Queda en `http://localhost:1234/v1`.
+4. En `.env`:
+
+   ```
+   PROVEEDOR_LLM=openai
+   LLM_URL=http://localhost:1234/v1
+   LLM=<nombre del modelo>
+   ```
+
+   El nombre exacto aparece en LM Studio y en `http://localhost:1234/v1/models`.
+
+Sirve igual cualquier otro servidor compatible con la API de OpenAI; solo cambia `LLM_URL`. Por
+ejemplo, `llama-server` de llama.cpp queda en `http://localhost:8080/v1`.
+
+> [!WARNING]
+> Un servicio en la nube compatible con OpenAI también funciona con `PROVEEDOR_LLM=openai`, pero
+> entonces las preguntas y los fragmentos de la guía salen del equipo. Eso rompe el procesamiento
+> local acordado con UXLab: úsalo solo si el equipo y UXLab lo aprueban, nunca con datos reales, y
+> guarda la clave en el llavero (`python -m app.rag.secretos guardar LLM_API_KEY`, desde `backend/`),
+> no en `.env`.
+
+### Usar el LLM de otro equipo
+
+Si tu equipo tiene poca memoria, otro equipo de la misma red puede correr el LLM. El tuyo solo
+carga bge-m3 y el reranker.
+
+**En el equipo que corre el modelo**, deja el servidor escuchando en la red:
+
+- **Ollama**: define `OLLAMA_HOST=0.0.0.0:11434` y reinicia Ollama.
+  - macOS: `launchctl setenv OLLAMA_HOST "0.0.0.0:11434"` y vuelve a abrir la app.
+  - Windows: cierra Ollama desde la barra de tareas, agrega `OLLAMA_HOST` en «Editar las variables
+    de entorno de tu cuenta» y vuelve a abrirlo.
+  - Linux: `sudo systemctl edit ollama.service`, agrega `Environment="OLLAMA_HOST=0.0.0.0:11434"`
+    bajo `[Service]` y reinicia con `sudo systemctl restart ollama`.
+- **LM Studio**: en la configuración del servidor, activa la opción para servir en la red local.
+
+Busca su IP (macOS: `ipconfig getifaddr en0`; Windows: `ipconfig`, línea «Dirección IPv4»; Linux:
+`hostname -I`). Si Windows pregunta por el firewall, permite el acceso en redes privadas.
+
+**En tu equipo**, apunta a esa IP en `.env`: `OLLAMA_URL=http://<IP>:11434` con Ollama, o
+`LLM_URL=http://<IP>:1234/v1` con LM Studio.
+
+> [!CAUTION]
+> Ni Ollama ni LM Studio piden contraseña. Úsalos solo en la misma red Wi-Fi o con una VPN entre
+> equipos (por ejemplo, Tailscale), nunca expuestos a internet.
+
+### En Windows
+
+Los comandos de este README usan rutas de Mac y Linux. En Windows, crea el entorno con
+`py -3.12 -m venv .venv` y cambia `.venv/bin/` por `.venv\Scripts\`, por ejemplo
+`cd backend; ..\.venv\Scripts\python -m app.rag.generar "…"`. Con una GPU NVIDIA, pon
+`DISPOSITIVO=cuda:0` en `.env`; si no, bge-m3 y el reranker corren en `cpu`.
+
+### Al comparar modelos
+
+- `GET /salud` muestra el proveedor, la URL y el modelo activos; la última línea de
+  `app.rag.generar`, el modelo.
+- El prompt se ajustó con `gemma3:4b`. Otro modelo puede citar o rechazar distinto: corre las mismas
+  preguntas y anota el modelo, el equipo y el tiempo de respuesta.
+- La primera respuesta de un modelo grande tarda más. Si se corta, sube `TIMEOUT_S` (180 s por
+  defecto).
+- Sin Ollama corre todo menos `eval/comparar_embeddings.py`, que usa Ollama para los embeddings que
+  compara.
 
 ---
 
@@ -382,7 +470,7 @@ pgvector suma ~0,8 s por pregunta por la ida y vuelta a Supabase.
 | Script | Qué hace | Requisitos |
 | --- | --- | --- |
 | [`calibrar_umbral.py`](eval/calibrar_umbral.py) | Prueba umbrales de rechazo y cortes de confianza (sin LLM, ~9 min) | — |
-| [`probar_asistente_etapa.py`](eval/probar_asistente_etapa.py) | Prueba el prompt del asistente por etapa con 9 escenarios ficticios (~15 min) | Ollama con `gemma3:4b` |
+| [`probar_asistente_etapa.py`](eval/probar_asistente_etapa.py) | Prueba el prompt del asistente por etapa con 9 escenarios ficticios (~15 min) | El LLM corriendo (Ollama con `gemma3:4b` u otro) |
 | [`comparar_embeddings.py`](eval/comparar_embeddings.py) | Compara bge-m3, qwen3-embedding y embeddinggemma, con y sin reranker | Ollama con `qwen3-embedding:0.6b` y `embeddinggemma` |
 | [`comparar_almacenes.py`](eval/comparar_almacenes.py) | Compara la recuperación en Chroma y en pgvector | Los dos índices y `SUPABASE_DB_URL` |
 
@@ -398,7 +486,8 @@ Métricas, tablas y últimos resultados en [eval/README.md](eval/README.md).
 
 La interfaz de chat (React 19 + Vite + TypeScript) le pregunta a la API de
 [`backend/app/api.py`](backend/app/api.py), que llama a `generar.responder()` y devuelve la respuesta
-con sus fuentes y su confianza. Se necesitan dos terminales, más Ollama corriendo con `gemma3:4b`.
+con sus fuentes y su confianza. Se necesitan dos terminales, más el servidor del LLM corriendo
+(Ollama con `gemma3:4b`, o el que elijas en [LLM en cada equipo](#-llm-en-cada-equipo)).
 Para consultar el índice de Supabase, pon `ALMACEN=pgvector` en `.env` y guarda `SUPABASE_DB_URL` en el llavero (paso 1).
 
 ```bash
@@ -411,7 +500,7 @@ npm install && npm run dev
 
 Vite reenvía `/ia` a `http://localhost:8000` (cámbialo con `RAG_API_URL`), así que el backend no
 necesita CORS. Las preguntas se atienden de a una y la primera carga los modelos, así que tarda más;
-en un Mac de 8 GB cada respuesta puede tardar minutos. Si Ollama no está disponible, la API responde
+en un Mac de 8 GB cada respuesta puede tardar minutos. Si el LLM no está disponible, la API responde
 503 con el motivo y la interfaz lo muestra en el chat. `GET /salud` muestra la configuración activa
 y `http://localhost:8000/docs`, el esquema de la API.
 

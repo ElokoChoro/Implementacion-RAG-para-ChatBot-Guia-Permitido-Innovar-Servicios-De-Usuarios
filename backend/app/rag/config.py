@@ -27,12 +27,19 @@ SUPABASE_DB_URL        Connection string de Postgres de Supabase (solo con ALMAC
                        Es una credencial: va en el llavero del sistema (ver secretos.py);
                        la variable de entorno solo se usa donde no hay llavero (CI, servidor).
 TABLA_PGVECTOR         Tabla del índice en pgvector, sin el prefijo «data_» de PGVectorStore.
-OLLAMA_URL             Dirección del servidor de Ollama.
-LLM                    Modelo de Ollama que redacta la respuesta («gemma3:4b»).
+PROVEEDOR_LLM          «ollama» (por defecto) u «openai»: cualquier servidor compatible con
+                       la API de OpenAI, como LM Studio o llama.cpp.
+OLLAMA_URL             Dirección del servidor de Ollama (con PROVEEDOR_LLM=ollama).
+LLM_URL                URL base del servidor compatible con OpenAI (con PROVEEDOR_LLM=openai).
+LLM_API_KEY            Clave de ese servidor; los locales no la piden. Si es un servicio en la
+                       nube, es una credencial: va en el llavero, como SUPABASE_DB_URL.
+LLM                    Modelo que redacta la respuesta («gemma3:4b»), con el nombre que
+                       le da el servidor.
 TEMPERATURE            Aleatoriedad del LLM; baja para que se apegue a la guía.
-CONTEXTO_TOKENS        Ventana de contexto del LLM (num_ctx de Ollama).
-MAX_TOKENS_RESPUESTA   Largo máximo de la respuesta, en tokens (num_predict de Ollama).
-TIMEOUT_S              Segundos de espera a Ollama antes de dar error.
+CONTEXTO_TOKENS        Ventana de contexto del LLM (num_ctx de Ollama; en otros servidores
+                       se fija al cargar el modelo y este valor debe coincidir).
+MAX_TOKENS_RESPUESTA   Largo máximo de la respuesta, en tokens.
+TIMEOUT_S              Segundos de espera al LLM antes de dar error.
 MAX_CARACTERES_PROYECTO  Largo máximo del contexto del proyecto que recibe el asistente por etapa.
 UMBRAL                 Puntaje mínimo del reranker (0 a 1) para que un fragmento llegue al LLM.
 CONFIANZA_MEDIA        Mejor puntaje desde el que la confianza es «media».
@@ -119,6 +126,17 @@ RUTA_CHROMA = Path(_env("RUTA_CHROMA", str(RAIZ / "storage" / "chroma")))
 # recién al abrir pgvector, para que con Chroma no se consulte el llavero.
 
 
+def llm_api_key() -> str:
+    """
+    LLM_API_KEY del entorno (o .env) si está; si no, del llavero.
+
+    Los servidores locales no piden clave, pero el cliente de OpenAI exige una:
+    si no está en ninguno, cualquier texto sirve. Se lee recién al crear el
+    cliente, para que con Ollama no se consulte el llavero.
+    """
+    return _env("LLM_API_KEY", "") or secretos.leer("LLM_API_KEY") or "sin-clave"
+
+
 def supabase_db_url() -> str:
     """SUPABASE_DB_URL del entorno (o .env) si está; si no, del llavero. Vacío si no está en ninguno."""
     return _env("SUPABASE_DB_URL", "") or secretos.leer("SUPABASE_DB_URL") or ""
@@ -127,11 +145,17 @@ def supabase_db_url() -> str:
 # PGVectorStore le antepone «data_»: la tabla real es public.data_guia_fragmentos.
 TABLA_PGVECTOR = _env("TABLA_PGVECTOR", "guia_fragmentos")
 
-# ---- LLM local (Ollama) ---------------------------------------------------------
+# ---- LLM -----------------------------------------------------------------------
+# Ollama por defecto. «openai» sirve para cualquier servidor que imite la API de
+# OpenAI (LM Studio, llama.cpp, vLLM…), en el mismo equipo o en otro: así, quien
+# no puede instalar Ollama prueba con otro programa sin tocar el código.
+PROVEEDOR_LLM = _env("PROVEEDOR_LLM", "ollama")
 # gemma3:4b ocupa ~3,3 GB. Con un contexto de 8192 tokens, en un Mac de 8 GB con
 # bge-m3 y el reranker cargados, Ollama se cae; 4096 alcanza para la pregunta,
 # TOP_K fragmentos de 400 tokens y la respuesta.
 OLLAMA_URL = _env("OLLAMA_URL", "http://localhost:11434")
+# Dirección por defecto del servidor local de LM Studio.
+LLM_URL = _env("LLM_URL", "http://localhost:1234/v1")
 LLM = _env("LLM", "gemma3:4b")
 TEMPERATURE = _env("TEMPERATURE", 0.1, float)
 CONTEXTO_TOKENS = _env("CONTEXTO_TOKENS", 4096, int)
@@ -164,6 +188,11 @@ def coleccion() -> str:
     """
     emb = EMBEDDINGS.split("/")[-1]
     return f"guia_{VERSION_CORPUS}_{emb}_c{CHUNK_TOKENS}o{CHUNK_OVERLAP}"
+
+
+def url_llm() -> str:
+    """Dirección del servidor del LLM según PROVEEDOR_LLM."""
+    return OLLAMA_URL if PROVEEDOR_LLM == "ollama" else LLM_URL
 
 
 def dispositivos() -> list[str] | None:

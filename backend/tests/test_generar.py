@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import httpx
+import openai
 import pytest
 from conftest import fragmento
 
-from app.rag import generar
+from app.rag import config, generar, modelos
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
 
 # Campos de `RespuestaGuia` en src/lib/rag.ts: el contrato de POST /ia/consultar-guia.
@@ -165,3 +167,45 @@ def test_mensajes_que_recibe_el_llm(monkeypatch: pytest.MonkeyPatch, etapa: int 
         assert "Mapa de momentos críticos" in usuario.content
     else:  # sin etapa, igual que en el prompt v3
         assert usuario.content.startswith("Etapa actual del proyecto (si se conoce): no indicada\n\n<contexto>\n")
+
+
+@pytest.fixture
+def proveedor(monkeypatch: pytest.MonkeyPatch):
+    """Cambia PROVEEDOR_LLM y crea de nuevo el cliente del LLM, que se guarda una sola vez por proceso."""
+    def cambiar(valor: str) -> None:
+        monkeypatch.setattr(config, "PROVEEDOR_LLM", valor)
+        modelos.llm.cache_clear()
+    yield cambiar
+    modelos.llm.cache_clear()
+
+
+@pytest.mark.parametrize("valor, clase", [("ollama", "Ollama"), ("openai", "OpenAILike")])
+def test_cliente_segun_proveedor(proveedor, valor: str, clase: str) -> None:
+    proveedor(valor)
+    assert type(modelos.llm()).__name__ == clase
+
+
+def test_proveedor_desconocido(proveedor) -> None:
+    proveedor("otro")
+    with pytest.raises(ValueError, match="PROVEEDOR_LLM"):
+        modelos.llm()
+
+
+def test_servidor_compatible_con_openai_apagado(proveedor, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Nada escucha en el puerto 9: el error dice dónde buscó y qué revisar.
+    monkeypatch.setattr(config, "LLM_URL", "http://127.0.0.1:9/v1")
+    proveedor("openai")
+    with pytest.raises(RuntimeError, match=r"127\.0\.0\.1:9/v1\. Inicia el servidor del modelo y revisa LLM_URL"):
+        generar.chat([])
+
+
+def test_modelo_que_no_tiene_el_servidor(proveedor, monkeypatch: pytest.MonkeyPatch) -> None:
+    proveedor("openai")
+    respuesta = httpx.Response(404, request=httpx.Request("POST", "http://127.0.0.1:1234/v1/chat/completions"))
+
+    def falla(_mensajes: list) -> None:
+        raise openai.NotFoundError("model not found", response=respuesta, body=None)
+
+    monkeypatch.setattr(generar, "llm", lambda: SimpleNamespace(chat=falla))
+    with pytest.raises(RuntimeError, match="no tiene el modelo"):
+        generar.chat([])

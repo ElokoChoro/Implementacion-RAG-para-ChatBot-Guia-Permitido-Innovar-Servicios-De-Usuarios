@@ -17,7 +17,7 @@ a la guía. Es lo que debe devolver `POST /ia/sugerir-proximos-pasos`.
 La respuesta tiene la forma de `Respuesta` (generar.py); las fuentes y la
 confianza salen de los fragmentos y del reranker, no del texto del LLM.
 
-Prueba rápida, desde backend/ (Ollama corriendo con el modelo de config.LLM):
+Prueba rápida, desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
     python -m app.rag.sugerir 1
     python -m app.rag.sugerir 7 --contexto "Servicio de licencias médicas" \\
         --datos '{"mapa_momentos_criticos": "pendiente"}' --json

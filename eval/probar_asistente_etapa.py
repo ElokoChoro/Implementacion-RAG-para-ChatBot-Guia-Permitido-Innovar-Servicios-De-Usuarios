@@ -14,12 +14,12 @@ Por cada escenario genera la respuesta con el LLM y revisa, sin juez humano:
   esperado       nombra lo que el escenario pide en «menciona» y nada de lo que
                  está en «no_menciona» (por ejemplo, lo que pide la inyección)
 
-También anota los tokens del prompt según Ollama, para ver cuánto margen queda
+También anota los tokens del prompt según el servidor del LLM, para ver cuánto margen queda
 en CONTEXTO_TOKENS. Las revisiones son automáticas y gruesas: no miden si los
 pasos son buenos, solo si respetan el formato y la guía. Conviene leer las
 respuestas en el JSON de salida.
 
-Uso, desde la raíz del repositorio (índice construido y Ollama corriendo):
+Uso, desde la raíz del repositorio (índice construido y el servidor del LLM corriendo):
     python eval/probar_asistente_etapa.py
     python eval/probar_asistente_etapa.py --ids E-04 E-08
     python eval/probar_asistente_etapa.py --recalcular   # revisa de nuevo el JSON, sin LLM
@@ -112,14 +112,15 @@ def generar(esc: dict) -> dict:
     nodos, mejor = fragmentos(esc["etapa"])
     ms = mensajes(esc["etapa"], nodos, texto_proyecto(esc["contexto"], esc["datos_etapa"]))
     r = llm().chat(ms)
-    raw = r.raw or {}
+    raw = r.raw if isinstance(r.raw, dict) else {}  # Ollama
+    uso = r.additional_kwargs  # servidores compatibles con OpenAI
     return {
         "id": esc["id"], "etapa": esc["etapa"], "descripcion": esc["descripcion"],
         "respuesta_llm": limpiar_citas((r.message.content or "").strip()),
         "fuentes_prompt": sorted(fuentes_prompt(nodos)),
         "mejor_puntaje": mejor,
-        "tokens_prompt": raw.get("prompt_eval_count"),
-        "tokens_respuesta": raw.get("eval_count"),
+        "tokens_prompt": raw.get("prompt_eval_count", uso.get("prompt_tokens")),
+        "tokens_respuesta": raw.get("eval_count", uso.get("completion_tokens")),
         "latencia_s": round(time.time() - t0, 1),
     }
 

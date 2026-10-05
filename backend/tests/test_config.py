@@ -36,3 +36,16 @@ def test_coleccion_incluye_corpus_modelo_y_fragmentacion(monkeypatch: pytest.Mon
     monkeypatch.setattr(config, "CHUNK_TOKENS", 400)
     monkeypatch.setattr(config, "CHUNK_OVERLAP", 50)
     assert config.coleccion() == "guia_v2_bge-m3_c400o50"
+
+
+def test_llm_api_key_del_entorno_del_llavero_o_por_defecto(monkeypatch: pytest.MonkeyPatch) -> None:
+    # El entorno manda; si no está, el llavero; y si no está en ninguno, cualquier texto
+    # (los servidores locales no la piden, pero el cliente de OpenAI exige una).
+    llavero: dict[str, str] = {}
+    monkeypatch.setattr(config.secretos, "leer", llavero.get)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    assert config.llm_api_key() == "sin-clave"
+    llavero["LLM_API_KEY"] = "del-llavero"
+    assert config.llm_api_key() == "del-llavero"
+    monkeypatch.setenv("LLM_API_KEY", "del-entorno")
+    assert config.llm_api_key() == "del-entorno"
