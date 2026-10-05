@@ -24,12 +24,15 @@ USAR_RERANKER          Si es false, se entregan los TOP_K más similares sin reo
 ALMACEN                Vector store: «chroma» (local, por defecto) o «pgvector» (Supabase).
 RUTA_CHROMA            Carpeta donde Chroma guarda el índice.
 SUPABASE_DB_URL        Connection string de Postgres de Supabase (solo con ALMACEN=pgvector).
+                       Es una credencial: va en el llavero del sistema (ver secretos.py);
+                       la variable de entorno solo se usa donde no hay llavero (CI, servidor).
 TABLA_PGVECTOR         Tabla del índice en pgvector, sin el prefijo «data_» de PGVectorStore.
 PROVEEDOR_LLM          «ollama» (por defecto) u «openai»: cualquier servidor compatible con
                        la API de OpenAI, como LM Studio o llama.cpp.
 OLLAMA_URL             Dirección del servidor de Ollama (con PROVEEDOR_LLM=ollama).
 LLM_URL                URL base del servidor compatible con OpenAI (con PROVEEDOR_LLM=openai).
-LLM_API_KEY            Clave de ese servidor; los locales aceptan cualquier texto.
+LLM_API_KEY            Clave de ese servidor; los locales no la piden. Si es un servicio en la
+                       nube, es una credencial: va en el llavero, como SUPABASE_DB_URL.
 LLM                    Modelo que redacta la respuesta («gemma3:4b»), con el nombre que
                        le da el servidor.
 TEMPERATURE            Aleatoriedad del LLM; baja para que se apegue a la guía.
@@ -48,7 +51,8 @@ propia colección (ver `coleccion()`), así que los índices anteriores no se pi
 En pgvector hay una sola tabla, que se recarga completa al indexar.
 
 Las variables también se leen del archivo .env de la raíz del repositorio (ver
-.env.example); las que ya están definidas en el entorno tienen prioridad.
+.env.example); las que ya están definidas en el entorno tienen prioridad. Las
+credenciales no van en .env sino en el llavero del sistema (ver secretos.py).
 """
 from __future__ import annotations
 
@@ -58,6 +62,8 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+
+from app.rag import secretos
 
 RAIZ = Path(__file__).resolve().parents[3]  # raíz del repositorio
 load_dotenv(RAIZ / ".env")
@@ -115,8 +121,27 @@ RUTA_CHROMA = Path(_env("RUTA_CHROMA", str(RAIZ / "storage" / "chroma")))
 # Connection string de Supabase (Project Settings › Database › Connection string,
 # «Session pooler», que funciona con IPv4), con la contraseña de la base:
 #   postgresql://postgres.<ref>:<contraseña>@aws-0-<región>.pooler.supabase.com:5432/postgres
-# Da acceso completo a la base: va solo en .env, nunca en el frontend.
-SUPABASE_DB_URL = _env("SUPABASE_DB_URL", "")
+# Da acceso completo a la base: se guarda en el llavero del sistema
+# (python -m app.rag.secretos guardar SUPABASE_DB_URL), nunca en el frontend. Se lee
+# recién al abrir pgvector, para que con Chroma no se consulte el llavero.
+
+
+def llm_api_key() -> str:
+    """
+    LLM_API_KEY del entorno (o .env) si está; si no, del llavero.
+
+    Los servidores locales no piden clave, pero el cliente de OpenAI exige una:
+    si no está en ninguno, cualquier texto sirve. Se lee recién al crear el
+    cliente, para que con Ollama no se consulte el llavero.
+    """
+    return _env("LLM_API_KEY", "") or secretos.leer("LLM_API_KEY") or "sin-clave"
+
+
+def supabase_db_url() -> str:
+    """SUPABASE_DB_URL del entorno (o .env) si está; si no, del llavero. Vacío si no está en ninguno."""
+    return _env("SUPABASE_DB_URL", "") or secretos.leer("SUPABASE_DB_URL") or ""
+
+
 # PGVectorStore le antepone «data_»: la tabla real es public.data_guia_fragmentos.
 TABLA_PGVECTOR = _env("TABLA_PGVECTOR", "guia_fragmentos")
 
@@ -129,10 +154,8 @@ PROVEEDOR_LLM = _env("PROVEEDOR_LLM", "ollama")
 # bge-m3 y el reranker cargados, Ollama se cae; 4096 alcanza para la pregunta,
 # TOP_K fragmentos de 400 tokens y la respuesta.
 OLLAMA_URL = _env("OLLAMA_URL", "http://localhost:11434")
-# Dirección por defecto del servidor local de LM Studio. Los servidores locales
-# no piden clave, pero el cliente de OpenAI exige una: cualquier texto sirve.
+# Dirección por defecto del servidor local de LM Studio.
 LLM_URL = _env("LLM_URL", "http://localhost:1234/v1")
-LLM_API_KEY = _env("LLM_API_KEY", "sin-clave")
 LLM = _env("LLM", "gemma3:4b")
 TEMPERATURE = _env("TEMPERATURE", 0.1, float)
 CONTEXTO_TOKENS = _env("CONTEXTO_TOKENS", 4096, int)

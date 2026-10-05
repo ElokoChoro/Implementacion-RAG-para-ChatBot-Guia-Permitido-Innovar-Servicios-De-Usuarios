@@ -112,7 +112,8 @@ def chat(mensajes: list[ChatMessage]) -> str:
         raise RuntimeError(f"El servidor en {config.LLM_URL} no tiene el modelo «{config.LLM}». "
                            f"Revisa el nombre en {config.LLM_URL}/models y ponlo en LLM.") from e
     except openai.AuthenticationError as e:
-        raise RuntimeError(f"El servidor en {config.LLM_URL} rechazó la clave. Revisa LLM_API_KEY.") from e
+        raise RuntimeError(f"El servidor en {config.LLM_URL} rechazó la clave. Guárdala con: "
+                           "python -m app.rag.secretos guardar LLM_API_KEY") from e
     except openai.APIStatusError as e:
         raise RuntimeError(f"Error del modelo: {e.message}") from e
 

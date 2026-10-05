@@ -152,7 +152,7 @@ def llm() -> LLM:
         from llama_index.llms.openai_like import OpenAILike
         # context_window no viaja al servidor: LlamaIndex lo usa para saber cuánto cabe.
         # Sin reintentos, para que TIMEOUT_S sea la espera total, como con Ollama.
-        return OpenAILike(model=config.LLM, api_base=config.LLM_URL, api_key=config.LLM_API_KEY,
+        return OpenAILike(model=config.LLM, api_base=config.LLM_URL, api_key=config.llm_api_key(),
                           temperature=config.TEMPERATURE,
                           context_window=config.CONTEXTO_TOKENS,
                           max_tokens=config.MAX_TOKENS_RESPUESTA,
