@@ -277,9 +277,8 @@ cd backend && ../.venv/bin/python -m app.rag.sugerir 7 --contexto "Renovación d
 No hay pregunta: busca los fragmentos de la actividad de esa etapa (filtrados por etapa) y el LLM
 sugiere qué busca la etapa, de tres a cinco próximos pasos y la herramienta de la guía, con citas.
 `--datos '{"mapa_momentos_criticos": "pendiente"}'` agrega el avance registrado en la etapa,
-`--json` muestra la forma del contrato y `--ver-prompt` muestra el prompt sin llamar al LLM. Es la
-base de `POST /ia/sugerir-proximos-pasos` de la plataforma, que recibe `etapa`, `contexto` y
-`datos_etapa`.
+`--json` muestra la forma del contrato y `--ver-prompt` muestra el prompt sin llamar al LLM. La API
+lo expone como `POST /ia/sugerir-proximos-pasos` (ver [Chatbot de prueba](#-chatbot-de-prueba)).
 
 > [!NOTE]
 > En un Mac de 8 GB, con bge-m3, el reranker y gemma3:4b cargados a la vez, falta memoria y cada
@@ -505,11 +504,20 @@ en un Mac de 8 GB cada respuesta puede tardar minutos. Si el LLM no está dispon
 503 con el motivo y la interfaz lo muestra en el chat. `GET /salud` muestra la configuración activa
 y `http://localhost:8000/docs`, el esquema de la API.
 
+La API también atiende el asistente por etapa, con los mismos campos que la plataforma ya envía.
+`etapa` (1 a 7) es obligatoria; `contexto` (texto o diccionario) y `datos_etapa` (diccionario), no.
+Responde con la misma forma que `POST /ia/consultar-guia`, con `version_prompt` `etapa-v1`:
+
+```bash
+curl -X POST localhost:8000/ia/sugerir-proximos-pasos -H 'Content-Type: application/json' \
+  -d '{"etapa": 7, "contexto": "Renovación del permiso de circulación", "datos_etapa": {"mapa_momentos_criticos": "pendiente"}}'
+```
+
 ### Simulador para integrar la plataforma
 
 Con `MODO=simulador`, la API responde con respuestas fijas de
 [`simulador.py`](backend/app/rag/simulador.py): mismas rutas, validación, errores y campos, pero sin
-cargar modelos. Así la plataforma puede integrar `POST /ia/consultar-guia` en cualquier servidor,
+cargar modelos. Así la plataforma puede integrar los dos endpoints en cualquier servidor,
 sin esperar al equipo que tiene los modelos. Solo necesita tres dependencias:
 
 ```bash
@@ -518,11 +526,13 @@ cd backend && MODO=simulador ../.venv-sim/bin/uvicorn app.api:app --port 8000
 ```
 
 Las marcas `#no-encontrada`, `#confianza-media`, `#confianza-baja` y `#error` en la pregunta
-fuerzan cada caso; `etapa` 1, 2 o 7 elige la respuesta, y `SIMULADOR_DEMORA_S` agrega una espera. En
+fuerzan cada caso; `etapa` 1, 2 o 7 elige la respuesta, y `SIMULADOR_DEMORA_S` agrega una espera.
+En `POST /ia/sugerir-proximos-pasos` hay una respuesta por cada etapa, armada con los datos de
+`guia.py`, y las marcas van en `contexto` o en `datos_etapa`. En
 Render: directorio raíz `backend`, build `pip install -r requirements-simulador.txt`, start
 `uvicorn app.api:app --host 0.0.0.0 --port $PORT` y las variables `MODO=simulador` y `CLAVE_SERVICIO`.
 
-**Clave de servicio.** Si `CLAVE_SERVICIO` tiene valor, `POST /ia/consultar-guia` exige
+**Clave de servicio.** Si `CLAVE_SERVICIO` tiene valor, los dos `POST` exigen
 `Authorization: Bearer <clave>` y responde 401 sin ella (`/salud` no la pide). La API la llama el
 backend de la plataforma, que ya valida la sesión de la persona: la clave nunca va en el navegador.
 En tu equipo se guarda en el llavero (`python -m app.rag.secretos guardar CLAVE_SERVICIO`, desde
@@ -556,7 +566,7 @@ mes las actualizaciones de npm, pip y GitHub Actions.
 ```text
 .
 ├── backend/
-│   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia
+│   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia y /ia/sugerir-proximos-pasos
 │   ├── app/rag/            Consulta: config, modelos, indice, recuperar, guia, prompts, generar;
 │   │                       asistente por etapa: prompts_etapa, sugerir; contrato (forma de la
 │   │                       respuesta) y simulador (respuestas fijas, sin modelos)

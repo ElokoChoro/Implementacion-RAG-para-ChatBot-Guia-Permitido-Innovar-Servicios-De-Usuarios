@@ -1,5 +1,6 @@
 """
-Forma de la respuesta de la API (`POST /ia/consultar-guia`), acordada con la plataforma.
+Forma de la respuesta de la API (`POST /ia/consultar-guia` y `POST /ia/sugerir-proximos-pasos`),
+acordada con la plataforma.
 
 Va en un módulo aparte, sin LlamaIndex ni modelos, para que la usen igual
 generar.py (respuestas reales), sugerir.py (asistente por etapa) y simulador.py
@@ -25,7 +26,7 @@ from app.rag.prompts import VERSION_PROMPT
 
 @dataclass
 class Respuesta:
-    """Respuesta con la forma del contrato de `POST /ia/consultar-guia`."""
+    """Respuesta con la forma del contrato de los dos POST de la API."""
 
     resultado: str
     encontrada: bool
