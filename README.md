@@ -345,8 +345,8 @@ ejemplo, `llama-server` de llama.cpp queda en `http://localhost:8080/v1`.
 > Un servicio en la nube compatible con OpenAI también funciona con `PROVEEDOR_LLM=openai`, pero
 > entonces las preguntas y los fragmentos de la guía salen del equipo. Eso rompe el procesamiento
 > local acordado con UXLab: úsalo solo si el equipo y UXLab lo aprueban, nunca con datos reales, y
-> guarda la clave en el llavero (`python -m app.rag.secretos guardar LLM_API_KEY`, desde `backend/`),
-> no en `.env`.
+> guarda la clave con `python -m app.rag.secretos guardar LLM_API_KEY` (desde `backend/`), igual que
+> `SUPABASE_DB_URL`.
 
 ### Usar el LLM de otro equipo
 
@@ -405,15 +405,23 @@ metadatos.
 <br>
 
 1. Copia el connection string del *Session pooler* (Project Settings › Database › Connection
-   string), con la contraseña de la base, y guárdalo en el llavero del sistema (Llavero de macOS,
-   Administrador de credenciales de Windows o Secret Service de Linux). El valor se pide sin
-   mostrarlo y no queda en `.env` ni en el historial de la terminal:
+   string), con la contraseña de la base, y guárdalo. El valor se pide sin mostrarlo, así que no
+   queda en el historial de la terminal:
 
    ```bash
    cd backend && ../.venv/bin/python -m app.rag.secretos guardar SUPABASE_DB_URL
    ```
 
-   Si ya lo tenías en `.env`, muévelo con `desde-env` en vez de `guardar`.
+   Dónde queda depende del equipo (`python -m app.rag.secretos donde` te lo dice):
+
+   | Equipo | Dónde queda |
+   | --- | --- |
+   | macOS, Windows, Linux con escritorio | Cifrado en el llavero del sistema (Llavero de macOS, Administrador de credenciales, GNOME Keyring o KWallet) |
+   | WSL, Linux sin escritorio, contenedor | En `.env`, que git ignora, legible solo para tu usuario |
+
+   Con `--en-env` va a `.env` aunque haya llavero (por ejemplo, si el de Linux pide la contraseña en
+   cada consulta). Si ya lo tenías en `.env` y tu equipo tiene llavero, muévelo con `desde-env`.
+   El valor no puede contener `${`, porque `.env` lo reemplazaría al leerlo.
 2. Aplica la migración con la [CLI de Supabase](https://supabase.com/docs/guides/cli):
 
    ```bash
@@ -459,8 +467,9 @@ Chroma y pgvector devuelven los mismos 20 candidatos, en el mismo orden, en las 
 pgvector suma ~0,8 s por pregunta por la ida y vuelta a Supabase.
 
 > [!WARNING]
-> `SUPABASE_DB_URL` da acceso completo a la base: va en el llavero del sistema, nunca en `.env`
-> ni en el frontend (ver [`secretos.py`](backend/app/rag/secretos.py)). Supabase
+> `SUPABASE_DB_URL` da acceso completo a la base: va en el llavero del sistema o, en equipos sin
+> llavero, en `.env` (ver [`secretos.py`](backend/app/rag/secretos.py)); nunca en el frontend ni en
+> una variable `VITE_`, ni pegada en un chat o un commit. Supabase
 > pausa los proyectos gratuitos tras una semana sin actividad: antes de una demo, revisa que el
 > proyecto esté activo.
 
@@ -489,7 +498,7 @@ La interfaz de chat (React 19 + Vite + TypeScript) le pregunta a la API de
 [`backend/app/api.py`](backend/app/api.py), que llama a `generar.responder()` y devuelve la respuesta
 con sus fuentes y su confianza. Se necesitan dos terminales, más el servidor del LLM corriendo
 (Ollama con `gemma3:4b`, o el que elijas en [LLM en cada equipo](#-llm-en-cada-equipo)).
-Para consultar el índice de Supabase, pon `ALMACEN=pgvector` en `.env` y guarda `SUPABASE_DB_URL` en el llavero (paso 1).
+Para consultar el índice de Supabase, pon `ALMACEN=pgvector` en `.env` y guarda `SUPABASE_DB_URL` (paso 1).
 
 ```bash
 cd backend && ../.venv/bin/uvicorn app.api:app --port 8000
@@ -525,9 +534,9 @@ Render: directorio raíz `backend`, build `pip install -r requirements-simulador
 **Clave de servicio.** Si `CLAVE_SERVICIO` tiene valor, `POST /ia/consultar-guia` exige
 `Authorization: Bearer <clave>` y responde 401 sin ella (`/salud` no la pide). La API la llama el
 backend de la plataforma, que ya valida la sesión de la persona: la clave nunca va en el navegador.
-En tu equipo se guarda en el llavero (`python -m app.rag.secretos guardar CLAVE_SERVICIO`, desde
-`backend/`); en un servidor, como variable de entorno. Vacía, la API no pide clave: así funciona el
-chatbot de prueba.
+En tu equipo se guarda con `python -m app.rag.secretos guardar CLAVE_SERVICIO` (desde `backend/`;
+llavero o `.env`, como `SUPABASE_DB_URL`); en un servidor, como variable de entorno. Vacía, la API
+no pide clave: así funciona el chatbot de prueba.
 
 ---
 

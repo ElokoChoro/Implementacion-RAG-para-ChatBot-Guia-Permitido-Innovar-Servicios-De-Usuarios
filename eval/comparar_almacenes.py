@@ -18,7 +18,7 @@ Se comparan distancias y no puntajes porque cada librería los escala distinto:
 ChromaVectorStore entrega exp(-distancia) y PGVectorStore, 1 - distancia.
 
 Uso, desde la raíz del repositorio (los dos índices tienen que existir y
-SUPABASE_DB_URL tiene que estar en el llavero; ver app/rag/secretos.py):
+SUPABASE_DB_URL tiene que estar en el llavero o en .env; ver app/rag/secretos.py):
     python eval/comparar_almacenes.py
 
 Deja los resultados en eval/resultados/comparacion_almacenes.json (o en SALIDA).
