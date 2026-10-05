@@ -554,6 +554,19 @@ están cargados y `clave`, si la API la pide. Con `PRECARGAR=true` la API carga 
 el índice al arrancar, en segundo plano, y la primera consulta no los espera; conviene en un
 servidor que atiende a la plataforma. El LLM lo carga su propio servidor con la primera consulta.
 
+**Log.** Cada solicitud deja una línea `clave=valor` en el log de uvicorn, y cada respuesta otra con
+el desglose de tiempos ([`registro.py`](backend/app/rag/registro.py)). No guardan el texto de la
+pregunta ni del proyecto, solo su largo:
+
+```text
+INFO app.rag.generar: etapa=7 filtrar_etapa=false largo_pregunta=31 mejor=0.936 fragmentos=4 t_recuperacion_s=5.2 t_llm_s=118.4 encontrada=true
+INFO app.api: ruta=consultar-guia estado=200 espera_s=0 latencia_s=123.6 encontrada=true confianza=alta mejor=0.936 fuentes=4 modo=local prompt=v4
+WARNING app.api: ruta=consultar-guia estado=503 motivo=cola_llena
+```
+
+`mejor` es el puntaje del reranker, también en las preguntas rechazadas: con `grep llm=no` salen las
+que no pasaron el `UMBRAL`, el dato para recalibrarlo con preguntas reales.
+
 ---
 
 ## ✅ Tests y CI

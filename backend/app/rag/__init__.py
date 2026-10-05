@@ -11,4 +11,5 @@ los servicios públicos desde la experiencia usuaria?».
     generar    respuesta con citas y confianza; umbral de rechazo
     contrato   forma de la respuesta de la API (Respuesta)
     simulador  respuestas fijas con la forma del contrato, sin modelos (MODO=simulador)
+    registro   líneas de log «clave=valor» por consulta, sin el texto de la pregunta
 """

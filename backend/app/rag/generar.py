@@ -13,6 +13,7 @@ Respuesta a una pregunta sobre la guía, con citas y nivel de confianza.
 
 Las fuentes de la respuesta salen de los fragmentos, no del texto del LLM, y la
 confianza sale del mejor puntaje del reranker (CONFIANZA_MEDIA, CONFIANZA_ALTA).
+Cada respuesta deja en el log cuánto tardaron la recuperación y el LLM (registro.py).
 La forma de la respuesta (`Respuesta`) está en contrato.py.
 
 Prueba rápida, desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
@@ -23,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import time
 
 import httpx
@@ -32,11 +34,13 @@ from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
 from ollama import ResponseError
 
-from app.rag import config
+from app.rag import config, registro
 from app.rag.contrato import Respuesta
 from app.rag.modelos import llm
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
 from app.rag.recuperar import recuperar
+
+log = logging.getLogger(__name__)
 
 
 def confianza(puntaje: float) -> str:
@@ -112,16 +116,22 @@ def responder(pregunta: str, etapa: int | None = None, filtrar_etapa: bool = Fal
     t0 = time.time()
     # El umbral está calibrado sobre el puntaje del reranker, así que siempre se usa.
     nodos = recuperar(pregunta, etapa if filtrar_etapa else None, usar_reranker=True)
+    t_recuperacion = time.time() - t0
     mejor = round(float(nodos[0].score), 3) if nodos else None
     nodos = SimilarityPostprocessor(similarity_cutoff=config.UMBRAL).postprocess_nodes(
         nodos, query_bundle=QueryBundle(pregunta))
+    tiempos = {"etapa": etapa, "filtrar_etapa": filtrar_etapa, "largo_pregunta": len(pregunta), "mejor": mejor,
+               "fragmentos": len(nodos), "t_recuperacion_s": round(t_recuperacion, 1)}
 
     if not nodos:  # ningún fragmento es relevante: no se llama al LLM
+        log.info(registro.campos(**tiempos, llm="no", encontrada=False))
         return Respuesta(resultado=f"{MENSAJE_NO_ENCONTRADA} {SUGERENCIA}", encontrada=False, confianza=None,
                          puntaje=mejor, latencia_s=round(time.time() - t0, 1))
 
+    t1 = time.time()
     texto = _generar(pregunta, etapa, nodos)
     encontrada = not texto.startswith(MENSAJE_NO_ENCONTRADA)
+    log.info(registro.campos(**tiempos, t_llm_s=round(time.time() - t1, 1), encontrada=encontrada))
     return Respuesta(
         resultado=texto,
         encontrada=encontrada,
@@ -139,6 +149,7 @@ def main():
     ap.add_argument("--filtrar-etapa", action="store_true", help="busca solo fragmentos de esa etapa")
     ap.add_argument("--json", action="store_true", help="salida con la forma del contrato")
     args = ap.parse_args()
+    registro.configurar()
 
     r = responder(args.pregunta, args.etapa, args.filtrar_etapa)
     if args.json:

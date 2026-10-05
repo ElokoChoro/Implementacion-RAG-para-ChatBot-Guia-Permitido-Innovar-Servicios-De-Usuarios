@@ -15,7 +15,8 @@ a la guía. Es lo que devuelve `POST /ia/sugerir-proximos-pasos` (api.py).
      del prompt (ajustar_citas).
 
 La respuesta tiene la forma de `Respuesta` (contrato.py); las fuentes y la
-confianza salen de los fragmentos y del reranker, no del texto del LLM.
+confianza salen de los fragmentos y del reranker, no del texto del LLM. Cada
+respuesta deja en el log cuánto tardaron la recuperación y el LLM (registro.py).
 
 Prueba rápida, desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
     python -m app.rag.sugerir 1
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 import time
 
@@ -35,7 +37,7 @@ from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.schema import NodeWithScore, QueryBundle
 
-from app.rag import config, guia
+from app.rag import config, guia, registro
 from app.rag.contrato import Respuesta
 from app.rag.generar import _contexto, _fuente, chat, confianza
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA
@@ -48,6 +50,8 @@ from app.rag.prompts_etapa import (
     texto_etapa,
 )
 from app.rag.recuperar import recuperar
+
+log = logging.getLogger(__name__)
 
 
 def _a_texto(valor) -> str:
@@ -175,14 +179,20 @@ def sugerir(etapa: int, contexto: str | dict | None = None,
     t0 = time.time()
     consulta(etapa)  # valida la etapa antes de cargar modelos
     nodos, mejor = fragmentos(etapa)
+    proyecto = texto_proyecto(contexto, datos_etapa)
+    tiempos = {"etapa": etapa, "largo_proyecto": len(proyecto) if proyecto != PROYECTO_VACIO else 0,
+               "mejor": mejor, "fragmentos": len(nodos), "t_recuperacion_s": round(time.time() - t0, 1)}
     if not nodos:
+        log.info(registro.campos(**tiempos, llm="no", encontrada=False))
         return Respuesta(resultado=SIN_FRAGMENTOS, encontrada=False, confianza=None,
                          version_prompt=VERSION_PROMPT_ETAPA, puntaje=mejor,
                          latencia_s=round(time.time() - t0, 1))
 
-    texto = limpiar_citas(chat(mensajes(etapa, nodos, texto_proyecto(contexto, datos_etapa))))
+    t1 = time.time()
+    texto = limpiar_citas(chat(mensajes(etapa, nodos, proyecto)))
     texto = ajustar_citas(texto, fuentes_prompt(nodos))
     encontrada = not texto.startswith(MENSAJE_NO_ENCONTRADA)
+    log.info(registro.campos(**tiempos, t_llm_s=round(time.time() - t1, 1), encontrada=encontrada))
     return Respuesta(
         resultado=texto,
         encontrada=encontrada,
@@ -203,6 +213,7 @@ def main():
     ap.add_argument("--ver-prompt", action="store_true", help="muestra el prompt sin llamar al LLM")
     ap.add_argument("--ver-consulta", action="store_true", help="muestra la consulta de la etapa, sin modelos")
     args = ap.parse_args()
+    registro.configurar()
     datos = json.loads(args.datos) if args.datos else None
 
     if args.ver_consulta:

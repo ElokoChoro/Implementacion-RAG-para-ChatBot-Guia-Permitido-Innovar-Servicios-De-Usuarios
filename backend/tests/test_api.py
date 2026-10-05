@@ -102,6 +102,17 @@ def test_salud() -> None:
     assert r.json()["listo"] is False  # nadie ha preguntado y no hubo precarga
 
 
+def test_log_de_la_consulta_sin_su_texto(llamadas: list[tuple], caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO, logger="app.api"):
+        cliente.post("/ia/consultar-guia", json={"pregunta": "¿Mi RUT 12.345.678-9 sirve?"})
+
+    linea = caplog.records[-1].getMessage()
+    for campo in ("ruta=consultar-guia", "estado=200", "espera_s=", "encontrada=true", "confianza=alta",
+                  "mejor=0.93", "modo=local"):
+        assert campo in linea
+    assert "RUT" not in caplog.text
+
+
 def test_salud_no_usa_el_grupo_de_hilos() -> None:
     # Las consultas que esperan turno ocupan hilos; si /salud usara uno, dejaría de
     # responder con la cola llena y el servidor la daría por caída.
@@ -126,6 +137,25 @@ def test_cola_llena(monkeypatch: pytest.MonkeyPatch, llamadas: list[tuple]) -> N
     assert r.status_code == 503
     assert r.headers["Retry-After"] == str(api.REINTENTAR_S)
     assert llamadas == []
+
+
+def test_log_del_503(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    def responder(*_args):
+        raise RuntimeError("El modelo no está disponible. Inicia Ollama (ollama serve).")
+
+    monkeypatch.setattr(api, "responder", responder)
+    cupos = threading.BoundedSemaphore(1)
+    with caplog.at_level(logging.INFO, logger="app.api"):
+        cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"})
+        cupos.acquire()
+        monkeypatch.setattr(api, "_cupos", cupos)
+        cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"})
+
+    assert [r.getMessage() for r in caplog.records] == [
+        'ruta=consultar-guia estado=503 motivo="El modelo no está disponible. Inicia Ollama (ollama serve)." '
+        'espera_s=0',
+        "ruta=consultar-guia estado=503 motivo=cola_llena",
+    ]
 
 
 def test_no_llega_el_turno(monkeypatch: pytest.MonkeyPatch, llamadas: list[tuple]) -> None:

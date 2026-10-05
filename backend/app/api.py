@@ -58,7 +58,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
-from app.rag import config
+from app.rag import config, registro
 from app.rag.contrato import Respuesta
 
 if config.MODO == "simulador":
@@ -67,6 +67,7 @@ else:
     from app.rag.generar import responder
     from app.rag.sugerir import sugerir
 
+registro.configurar()
 log = logging.getLogger("app.api")
 
 # Turno: una consulta a la vez. Cupos: la que se atiende más las que pueden esperar.
@@ -147,27 +148,37 @@ def _ocupada() -> HTTPException:
                          detail="La API está atendiendo otras consultas. Reintenta en unos minutos.")
 
 
-def _atender(consulta: Callable[[], Respuesta]) -> dict:
+def _atender(ruta: str, consulta: Callable[[], Respuesta]) -> dict:
     """
-    Corre `consulta` cuando le toca el turno.
+    Corre `consulta` cuando le toca el turno y deja una línea en el log con el resultado.
 
     503 si la cola está llena, si no llega el turno en ESPERA_TURNO_S o si la
     consulta lanza RuntimeError (servidor del LLM o índice no disponibles).
     """
+    t0 = time.time()
     if not _cupos.acquire(blocking=False):
+        log.warning(registro.campos(ruta=ruta, estado=503, motivo="cola_llena"))
         raise _ocupada()
     try:
         if not _turno.acquire(timeout=config.ESPERA_TURNO_S):
+            log.warning(registro.campos(ruta=ruta, estado=503, motivo="sin_turno",
+                                        espera_s=round(time.time() - t0, 1)))
             raise _ocupada()
+        espera = round(time.time() - t0, 1)
         try:
             respuesta = consulta()
         except RuntimeError as e:
+            log.error(registro.campos(ruta=ruta, estado=503, motivo=str(e), espera_s=espera))
             raise HTTPException(status_code=503, detail=str(e)) from e
         finally:
             _turno.release()
     finally:
         _cupos.release()
     _listo.set()
+    log.info(registro.campos(ruta=ruta, estado=200, espera_s=espera, latencia_s=respuesta.latencia_s,
+                             encontrada=respuesta.encontrada, confianza=respuesta.confianza,
+                             mejor=respuesta.puntaje, fuentes=len(respuesta.fuentes), modo=respuesta.modo,
+                             prompt=respuesta.version_prompt))
     return respuesta.a_dict()
 
 
@@ -188,14 +199,15 @@ def consultar_guia(consulta: Consulta) -> dict:
     pregunta = consulta.pregunta.strip()
     if not pregunta:
         raise HTTPException(status_code=422, detail="La pregunta está vacía.")
-    return _atender(lambda: responder(pregunta, consulta.etapa, consulta.filtrar_etapa))
+    return _atender("consultar-guia", lambda: responder(pregunta, consulta.etapa, consulta.filtrar_etapa))
 
 
 @app.post("/ia/sugerir-proximos-pasos", response_model=Respuesta, dependencies=[Depends(_verificar_clave)])
 def sugerir_proximos_pasos(solicitud: SolicitudEtapa) -> dict:
     # No hace falta un tope para `contexto` y `datos_etapa`: sugerir.texto_proyecto los
     # corta en MAX_CARACTERES_PROYECTO antes de que lleguen al LLM.
-    return _atender(lambda: sugerir(solicitud.etapa, solicitud.contexto, solicitud.datos_etapa))
+    return _atender("sugerir-proximos-pasos",
+                    lambda: sugerir(solicitud.etapa, solicitud.contexto, solicitud.datos_etapa))
 
 
 @app.get("/salud")
