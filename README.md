@@ -537,7 +537,22 @@ Render: directorio raíz `backend`, build `pip install -r requirements-simulador
 backend de la plataforma, que ya valida la sesión de la persona: la clave nunca va en el navegador.
 En tu equipo se guarda en el llavero (`python -m app.rag.secretos guardar CLAVE_SERVICIO`, desde
 `backend/`); en un servidor, como variable de entorno. Vacía, la API no pide clave: así funciona el
-chatbot de prueba.
+chatbot de prueba. Si la API arranca sin clave, lo avisa en el log.
+
+**Turno, cola y errores.** Los modelos atienden una consulta a la vez. Mientras se atiende una,
+esperan turno hasta `COLA_MAXIMA` más (2 por defecto), cada una `ESPERA_TURNO_S` como máximo (300 s):
+
+| Situación | Respuesta |
+| --- | --- |
+| La cola está llena | `503` de inmediato, con `Retry-After: 120` |
+| No llegó el turno a tiempo | `503` con `Retry-After: 120` |
+| El servidor del LLM o el índice de Supabase no responden | `503` con qué revisar en `detail` |
+| Cualquier otro error | `500` con un `detail` genérico; la traza queda en el log |
+
+`GET /salud` no espera turno: responde aunque la cola esté llena. `listo` dice si los modelos ya
+están cargados y `clave`, si la API la pide. Con `PRECARGAR=true` la API carga bge-m3, el reranker y
+el índice al arrancar, en segundo plano, y la primera consulta no los espera; conviene en un
+servidor que atiende a la plataforma. El LLM lo carga su propio servidor con la primera consulta.
 
 ---
 

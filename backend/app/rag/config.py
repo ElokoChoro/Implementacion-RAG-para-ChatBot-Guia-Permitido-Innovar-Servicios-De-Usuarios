@@ -50,6 +50,11 @@ SIMULADOR_DEMORA_S     Segundos que espera el simulador antes de responder (0 po
 CLAVE_SERVICIO         Clave que la API exige como «Authorization: Bearer <clave>». Vacía: la API
                        no pide clave (uso local). Es una credencial: va en el llavero
                        (ver secretos.py); la variable de entorno solo donde no hay llavero.
+COLA_MAXIMA            Consultas que pueden esperar turno mientras se atiende una; con más, la API
+                       responde 503 de inmediato.
+ESPERA_TURNO_S         Segundos que una consulta espera turno antes de responder 503.
+PRECARGAR              Si es true, la API carga bge-m3, el reranker y el índice al arrancar, en
+                       segundo plano, en vez de con la primera consulta.
 
 Si cambian EMBEDDINGS, CHUNK_TOKENS, CHUNK_OVERLAP o VERSION_CORPUS, hay que
 volver a indexar (python -m ingesta.indexar). En Chroma cada combinación usa su
@@ -83,6 +88,17 @@ def _env(nombre: str, defecto: Any, tipo: Callable[[str], Any] = str) -> Any:
     if tipo is bool:
         return valor.strip().lower() in ("1", "true", "si", "sí")
     return tipo(valor)
+
+
+def _env_opcion(nombre: str, defecto: str, opciones: tuple[str, ...]) -> str:
+    """
+    Lee una variable que solo admite `opciones`. ValueError al importar si trae otra:
+    así un «MODO=simuladr» falla al arrancar y no carga los modelos sin avisar.
+    """
+    valor = _env(nombre, defecto).strip().lower()
+    if valor not in opciones:
+        raise ValueError(f"{nombre}={valor!r} no es válido. Usa uno de: {', '.join(opciones)}.")
+    return valor
 
 
 # ---- Corpus -------------------------------------------------------------------
@@ -121,7 +137,7 @@ USAR_RERANKER = _env("USAR_RERANKER", True, bool)
 # ---- Vector store -------------------------------------------------------------
 # «chroma»: índice local en disco. «pgvector»: índice en Supabase, compartido por el
 # equipo; la tabla se crea con supabase/migrations/ y se carga con ingesta.indexar.
-ALMACEN = _env("ALMACEN", "chroma")
+ALMACEN = _env_opcion("ALMACEN", "chroma", ("chroma", "pgvector"))
 # Chroma guarda el índice en disco, dentro del repositorio (carpeta ignorada por git).
 RUTA_CHROMA = Path(_env("RUTA_CHROMA", str(RAIZ / "storage" / "chroma")))
 # Connection string de Supabase (Project Settings › Database › Connection string,
@@ -160,7 +176,7 @@ TABLA_PGVECTOR = _env("TABLA_PGVECTOR", "guia_fragmentos")
 # Ollama por defecto. «openai» sirve para cualquier servidor que imite la API de
 # OpenAI (LM Studio, llama.cpp, vLLM…), en el mismo equipo o en otro: así, quien
 # no puede instalar Ollama prueba con otro programa sin tocar el código.
-PROVEEDOR_LLM = _env("PROVEEDOR_LLM", "ollama")
+PROVEEDOR_LLM = _env_opcion("PROVEEDOR_LLM", "ollama", ("ollama", "openai"))
 # gemma3:4b ocupa ~3,3 GB. Con un contexto de 8192 tokens, en un Mac de 8 GB con
 # bge-m3 y el reranker cargados, Ollama se cae; 4096 alcanza para la pregunta,
 # TOP_K fragmentos de 400 tokens y la respuesta.
@@ -194,8 +210,20 @@ CONFIANZA_ALTA = _env("CONFIANZA_ALTA", 0.9, float)
 # LlamaIndex ni los modelos: corre con backend/requirements-simulador.txt en un
 # servidor sin GPU (p. ej. Render, plan gratuito), para que la plataforma integre
 # la API sin esperar al equipo que tiene los modelos.
-MODO = _env("MODO", "local")
+MODO = _env_opcion("MODO", "local", ("local", "simulador"))
 SIMULADOR_DEMORA_S = _env("SIMULADOR_DEMORA_S", 0.0, float)
+# Las consultas se atienden de a una (api.py). Las respuestas reales tardaron entre 89 y
+# 298 s en un Mac M2 de 8 GB: con 2 en espera, la última puede esperar unos 10 min. Con
+# más en cola conviene responder 503 de inmediato, para que la plataforma reintente más
+# tarde en vez de dejar la conexión abierta.
+COLA_MAXIMA = _env("COLA_MAXIMA", 2, int)
+# Lo que tardó la respuesta más lenta medida (298 s), con margen: alcanza para esperar
+# a que termine la consulta en curso. Ajústalo al tiempo de espera de quien llama.
+ESPERA_TURNO_S = _env("ESPERA_TURNO_S", 300.0, float)
+# Sin precarga, la primera consulta carga los modelos (~1,2 GB cada uno) y tarda más.
+# Apagado por defecto: en uso local, uvicorn arranca al instante y los modelos se cargan
+# solo si alguien pregunta. En un servidor que atiende a la plataforma, conviene prenderlo.
+PRECARGAR = _env("PRECARGAR", False, bool)
 
 
 def coleccion() -> str:

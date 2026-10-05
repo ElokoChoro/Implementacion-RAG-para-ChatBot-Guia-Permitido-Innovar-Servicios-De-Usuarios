@@ -13,7 +13,7 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 | Carpeta | Contenido |
 | --- | --- |
 | `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador` |
-| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y `GET /salud`; atiende las solicitudes de a una. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
+| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y `GET /salud`; atiende las solicitudes de a una, con tope de cola (`COLA_MAXIMA`, `ESPERA_TURNO_S`) y 503 si no hay turno. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
 | `data/corpus/v2/` | Corpus vigente, una página por línea (`paginas.jsonl`) |
