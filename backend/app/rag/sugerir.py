@@ -51,7 +51,7 @@ from app.rag.prompts_etapa import (
 )
 from app.rag.recuperar import recuperar
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("app.rag.sugerir")  # no __name__: con python -m vale «__main__»
 
 
 def _a_texto(valor) -> str:

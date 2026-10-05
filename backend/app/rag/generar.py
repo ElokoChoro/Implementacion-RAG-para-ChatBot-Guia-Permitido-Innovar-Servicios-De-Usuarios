@@ -40,7 +40,7 @@ from app.rag.modelos import llm
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
 from app.rag.recuperar import recuperar
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("app.rag.generar")  # no __name__: con python -m vale «__main__»
 
 
 def confianza(puntaje: float) -> str:
