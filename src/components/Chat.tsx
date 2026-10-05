@@ -1,5 +1,5 @@
 import { useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react'
-import { IconAttach, IconDots, IconMenu, IconSend, IconSpark } from '../icons'
+import { IconMenu, IconSend, IconSpark } from '../icons'
 import type { Conversation } from '../types'
 
 type ChatProps = {
@@ -55,9 +55,6 @@ export function Chat({
           <h1>{conversation.title}</h1>
           <p>Respuestas basadas en la guía Permitido Innovar</p>
         </div>
-        <button className="icon-btn" type="button" aria-label="Más opciones">
-          <IconDots />
-        </button>
       </header>
 
       <div className="messages" role="log" aria-live="polite">
@@ -112,9 +109,6 @@ export function Chat({
       </div>
 
       <form className="composer" onSubmit={handleSubmit}>
-        <button className="icon-btn" type="button" aria-label="Adjuntar archivo">
-          <IconAttach />
-        </button>
         <textarea
           rows={1}
           value={draft}

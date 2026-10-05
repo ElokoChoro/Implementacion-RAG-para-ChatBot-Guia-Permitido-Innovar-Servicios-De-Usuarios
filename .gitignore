@@ -53,3 +53,8 @@ __pycache__/
 # Ingesta: salida cruda de Docling e índice local (se regeneran con los scripts de ingesta/)
 data/docling/
 storage/
+
+# PDF de la guía: no se versiona; su hash está en data/fuentes/guia.yaml
+data/fuentes/*.pdf
+# Archivos temporales de la CLI de Supabase (supabase link)
+supabase/.temp/

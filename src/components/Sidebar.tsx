@@ -70,14 +70,6 @@ export function Sidebar({
           <p className="empty-list">No hay conversaciones con ese filtro.</p>
         )}
       </nav>
-
-      <div className="sidebar-footer">
-        <div className="avatar">AC</div>
-        <div>
-          <p className="user-name">Ana Costa</p>
-          <p className="user-role">Equipo interno</p>
-        </div>
-      </div>
     </aside>
   )
 }

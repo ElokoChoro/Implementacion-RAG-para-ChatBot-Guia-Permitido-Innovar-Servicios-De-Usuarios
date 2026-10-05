@@ -60,26 +60,3 @@ export function IconSpark({ size = 18 }: IconProps) {
     </svg>
   )
 }
-
-export function IconDots({ size = 16 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="6" cy="12" r="1.6" />
-      <circle cx="12" cy="12" r="1.6" />
-      <circle cx="18" cy="12" r="1.6" />
-    </svg>
-  )
-}
-
-export function IconAttach({ size = 18 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M8.5 12.5 14 7a3.2 3.2 0 1 1 4.5 4.5l-7.8 7.8a4.5 4.5 0 0 1-6.4-6.4l7.4-7.4"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
