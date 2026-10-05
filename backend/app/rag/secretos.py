@@ -11,9 +11,9 @@ config.py busca cada credencial en este orden:
   1. variable de entorno o .env (sirve para CI o servidores sin llavero);
   2. llavero del sistema, en el servicio SERVICIO y con el nombre de la variable.
 
-Las credenciales son SUPABASE_DB_URL y LLM_API_KEY (solo si el LLM es un servicio
-que pide clave). Las claves VITE_ quedan en .env:
-Vite las incrusta en el navegador, así que no son secretas (la anon key es
+Las credenciales son SUPABASE_DB_URL, LLM_API_KEY (solo si el LLM es un servicio
+que pide clave) y CLAVE_SERVICIO (la que la API le exige a la plataforma). Las
+claves VITE_ quedan en .env: Vite las incrusta en el navegador, así que no son secretas (la anon key es
 pública y la protege RLS).
 
 Uso, desde backend/:
@@ -36,7 +36,7 @@ from pathlib import Path
 # Nombre con el que se agrupan las credenciales del proyecto en el llavero.
 SERVICIO = "guia-permitido-innovar"
 # Credenciales que se pueden guardar. Una nueva se agrega aquí y en config.py.
-SECRETOS = ("SUPABASE_DB_URL", "LLM_API_KEY")
+SECRETOS = ("SUPABASE_DB_URL", "LLM_API_KEY", "CLAVE_SERVICIO")
 
 RAIZ = Path(__file__).resolve().parents[3]  # raíz del repositorio
 

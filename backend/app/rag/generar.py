@@ -13,6 +13,7 @@ Respuesta a una pregunta sobre la guía, con citas y nivel de confianza.
 
 Las fuentes de la respuesta salen de los fragmentos, no del texto del LLM, y la
 confianza sale del mejor puntaje del reranker (CONFIANZA_MEDIA, CONFIANZA_ALTA).
+La forma de la respuesta (`Respuesta`) está en contrato.py.
 
 Prueba rápida, desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
     python -m app.rag.generar "¿Qué es un mapa de momentos críticos?" --etapa 7
@@ -23,7 +24,6 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from dataclasses import asdict, dataclass, field
 
 import httpx
 import openai
@@ -33,27 +33,10 @@ from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
 from ollama import ResponseError
 
 from app.rag import config
+from app.rag.contrato import Respuesta
 from app.rag.modelos import llm
-from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, VERSION_PROMPT, texto_etapa
+from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
 from app.rag.recuperar import recuperar
-
-
-@dataclass
-class Respuesta:
-    """Respuesta con la forma del contrato de `POST /ia/consultar-guia`."""
-
-    resultado: str
-    encontrada: bool
-    confianza: str | None          # «alta», «media» o «baja»; None si no se encontró
-    fuentes: list[dict] = field(default_factory=list)
-    modelo: str = config.LLM
-    version_prompt: str = VERSION_PROMPT
-    modo: str = "local"
-    puntaje: float | None = None   # mejor puntaje del reranker, para auditar el umbral
-    latencia_s: float = 0.0
-
-    def a_dict(self) -> dict:
-        return asdict(self)
 
 
 def confianza(puntaje: float) -> str:

@@ -14,7 +14,7 @@ a la guía. Es lo que debe devolver `POST /ia/sugerir-proximos-pasos`.
   4. Citas: se corrige la forma de las que no copian exacto una línea «fuente:»
      del prompt (ajustar_citas).
 
-La respuesta tiene la forma de `Respuesta` (generar.py); las fuentes y la
+La respuesta tiene la forma de `Respuesta` (contrato.py); las fuentes y la
 confianza salen de los fragmentos y del reranker, no del texto del LLM.
 
 Prueba rápida, desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
@@ -36,7 +36,8 @@ from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.schema import NodeWithScore, QueryBundle
 
 from app.rag import config, guia
-from app.rag.generar import Respuesta, _contexto, _fuente, chat, confianza
+from app.rag.contrato import Respuesta
+from app.rag.generar import _contexto, _fuente, chat, confianza
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA
 from app.rag.prompts_etapa import (
     PROYECTO_VACIO,

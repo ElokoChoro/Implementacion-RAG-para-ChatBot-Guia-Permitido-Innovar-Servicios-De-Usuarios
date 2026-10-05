@@ -14,6 +14,10 @@ from llama_index.core.schema import NodeWithScore, TextNode
 
 from app.rag import config
 
+# Campos de `RespuestaGuia` en src/lib/rag.ts: el contrato de POST /ia/consultar-guia.
+CAMPOS_CONTRATO = {"resultado", "encontrada", "confianza", "fuentes", "modelo", "version_prompt",
+                   "modo", "puntaje", "latencia_s"}
+
 
 @pytest.fixture(autouse=True)
 def umbrales(monkeypatch: pytest.MonkeyPatch) -> None:

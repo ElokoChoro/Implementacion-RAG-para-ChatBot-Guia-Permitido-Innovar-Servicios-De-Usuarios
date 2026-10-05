@@ -134,7 +134,8 @@ Todos los parámetros se pueden cambiar por variable de entorno o en `.env`.
 
 ### La respuesta
 
-`app.rag.generar --json` devuelve la forma del contrato de `POST /ia/consultar-guia`:
+`app.rag.generar --json` devuelve la forma del contrato de `POST /ia/consultar-guia`
+([`contrato.py`](backend/app/rag/contrato.py)):
 
 | Campo | Contenido |
 | --- | --- |
@@ -142,7 +143,7 @@ Todos los parámetros se pueden cambiar por variable de entorno o en `.env`.
 | `encontrada` | `false` si se rechazó por el umbral o por el LLM |
 | `confianza` | `alta`, `media` o `baja`, según el reranker; `null` si no se encontró |
 | `fuentes` | Lista con `seccion`, `pagina`, `fuente`, `fragmento` y `puntaje` de cada fragmento |
-| `modelo`, `version_prompt`, `modo` | Qué generó la respuesta, para auditar |
+| `modelo`, `version_prompt`, `modo` | Qué generó la respuesta, para auditar; `modo` es `local` o `simulador` |
 | `puntaje`, `latencia_s` | Mejor puntaje del reranker y tiempo total |
 
 ---
@@ -504,6 +505,30 @@ en un Mac de 8 GB cada respuesta puede tardar minutos. Si el LLM no está dispon
 503 con el motivo y la interfaz lo muestra en el chat. `GET /salud` muestra la configuración activa
 y `http://localhost:8000/docs`, el esquema de la API.
 
+### Simulador para integrar la plataforma
+
+Con `MODO=simulador`, la API responde con respuestas fijas de
+[`simulador.py`](backend/app/rag/simulador.py): mismas rutas, validación, errores y campos, pero sin
+cargar modelos. Así la plataforma puede integrar `POST /ia/consultar-guia` en cualquier servidor,
+sin esperar al equipo que tiene los modelos. Solo necesita tres dependencias:
+
+```bash
+python3.12 -m venv .venv-sim && .venv-sim/bin/pip install -r backend/requirements-simulador.txt
+cd backend && MODO=simulador ../.venv-sim/bin/uvicorn app.api:app --port 8000
+```
+
+Las marcas `#no-encontrada`, `#confianza-media`, `#confianza-baja` y `#error` en la pregunta
+fuerzan cada caso; `etapa` 1, 2 o 7 elige la respuesta, y `SIMULADOR_DEMORA_S` agrega una espera. En
+Render: directorio raíz `backend`, build `pip install -r requirements-simulador.txt`, start
+`uvicorn app.api:app --host 0.0.0.0 --port $PORT` y las variables `MODO=simulador` y `CLAVE_SERVICIO`.
+
+**Clave de servicio.** Si `CLAVE_SERVICIO` tiene valor, `POST /ia/consultar-guia` exige
+`Authorization: Bearer <clave>` y responde 401 sin ella (`/salud` no la pide). La API la llama el
+backend de la plataforma, que ya valida la sesión de la persona: la clave nunca va en el navegador.
+En tu equipo se guarda en el llavero (`python -m app.rag.secretos guardar CLAVE_SERVICIO`, desde
+`backend/`); en un servidor, como variable de entorno. Vacía, la API no pide clave: así funciona el
+chatbot de prueba.
+
 ---
 
 ## ✅ Tests y CI
@@ -533,7 +558,9 @@ mes las actualizaciones de npm, pip y GitHub Actions.
 ├── backend/
 │   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia
 │   ├── app/rag/            Consulta: config, modelos, indice, recuperar, guia, prompts, generar;
-│   │                       asistente por etapa: prompts_etapa, sugerir
+│   │                       asistente por etapa: prompts_etapa, sugerir; contrato (forma de la
+│   │                       respuesta) y simulador (respuestas fijas, sin modelos)
+│   ├── requirements-simulador.txt  Solo la API con MODO=simulador
 │   └── tests/              Tests con pytest, sin modelos ni Ollama
 ├── ingesta/                PDF → JSON de Docling → corpus → índice vectorial
 ├── data/

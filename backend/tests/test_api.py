@@ -1,13 +1,19 @@
-"""Validación y códigos de error de la API HTTP, con `responder()` reemplazado."""
+"""Validación, clave de servicio y códigos de error de la API HTTP, con `responder()` reemplazado."""
 from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app import api
-from app.rag.generar import Respuesta
+from app.rag.contrato import Respuesta
 
 cliente = TestClient(api.app)
+
+
+@pytest.fixture(autouse=True)
+def sin_clave(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sin CLAVE_SERVICIO, como en uso local: el llavero de quien corre los tests no debe cambiarlo."""
+    monkeypatch.setattr(api, "_clave_servicio", lambda: "")
 
 
 @pytest.fixture
@@ -62,4 +68,26 @@ def test_salud() -> None:
     r = cliente.get("/salud")
 
     assert r.status_code == 200
-    assert set(r.json()) == {"almacen", "proveedor_llm", "llm_url", "llm", "embeddings", "reranker", "umbral"}
+    assert set(r.json()) == {"modo", "almacen", "proveedor_llm", "llm_url", "llm", "embeddings", "reranker",
+                             "umbral"}
+
+
+@pytest.mark.parametrize("encabezados", [{}, {"Authorization": "Bearer otra"}, {"Authorization": "clave-de-prueba"}])
+def test_clave_falta_o_no_es_valida(monkeypatch: pytest.MonkeyPatch, llamadas: list[tuple], encabezados: dict) -> None:
+    monkeypatch.setattr(api, "_clave_servicio", lambda: "clave-de-prueba")
+
+    r = cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"}, headers=encabezados)
+
+    assert r.status_code == 401
+    assert r.headers["WWW-Authenticate"] == "Bearer"
+    assert llamadas == []
+
+
+def test_clave_valida(monkeypatch: pytest.MonkeyPatch, llamadas: list[tuple]) -> None:
+    monkeypatch.setattr(api, "_clave_servicio", lambda: "clave-de-prueba")
+
+    r = cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"},
+                     headers={"Authorization": "Bearer clave-de-prueba"})
+
+    assert r.status_code == 200
+    assert cliente.get("/salud").status_code == 200  # /salud no pide clave

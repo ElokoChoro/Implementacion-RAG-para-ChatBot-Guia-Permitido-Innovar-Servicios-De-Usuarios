@@ -9,4 +9,6 @@ los servicios públicos desde la experiencia usuaria?».
     guia       estructura de la guía y etapas de la plataforma, como datos
     prompts    prompt del asistente y frase de rechazo
     generar    respuesta con citas y confianza; umbral de rechazo
+    contrato   forma de la respuesta de la API (Respuesta)
+    simulador  respuestas fijas con la forma del contrato, sin modelos (MODO=simulador)
 """

@@ -12,8 +12,8 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 
 | Carpeta | Contenido |
 | --- | --- |
-| `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir` |
-| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia` y `GET /salud`; atiende las preguntas de a una |
+| `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador` |
+| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia` y `GET /salud`; atiende las preguntas de a una. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
 | `data/corpus/v2/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v1/` queda como referencia |
@@ -46,6 +46,7 @@ cd backend && ../.venv/bin/python -m app.rag.generar "¿Qué es un plano del ser
 cd backend && ../.venv/bin/python -m app.rag.prompts --etapa 7   # contexto de la etapa que recibe el LLM
 cd backend && ../.venv/bin/python -m app.rag.sugerir 4 --ver-prompt   # asistente por etapa, sin LLM
 cd backend && ../.venv/bin/uvicorn app.api:app --port 8000   # API para el chatbot (npm run dev en otra terminal)
+cd backend && MODO=simulador ../.venv/bin/uvicorn app.api:app --port 8000   # API con respuestas fijas, sin modelos
 .venv/bin/python eval/calibrar_umbral.py                   # umbral y cortes de confianza
 .venv/bin/python eval/probar_asistente_etapa.py            # prompt del asistente por etapa (con LLM)
 .venv/bin/python eval/comparar_embeddings.py               # necesita Ollama con qwen3-embedding y embeddinggemma
@@ -94,9 +95,13 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   `eval/probar_asistente_etapa.py`. `generar.py` detecta el rechazo del LLM buscando `MENSAJE_NO_ENCONTRADA` al
   **inicio** de la respuesta: si cambias esa frase o la regla del caso C, revisa los dos archivos.
 - **Confianza y fuentes** salen del puntaje del reranker y de los metadatos de los fragmentos, nunca
-  del texto del LLM. `Respuesta` en `generar.py` tiene la forma del contrato `POST /ia/consultar-guia`:
-  no cambies sus campos sin acordarlo. `test_generar.py` compara sus campos con `RespuestaGuia`
-  de `src/lib/rag.ts`; si el cambio se acuerda, actualiza los tres.
+  del texto del LLM. `Respuesta` en `contrato.py` tiene la forma del contrato `POST /ia/consultar-guia`:
+  no cambies sus campos sin acordarlo. Los tests comparan sus campos con `CAMPOS_CONTRATO`
+  (`backend/tests/conftest.py`), copia de `RespuestaGuia` de `src/lib/rag.ts`; si el cambio se
+  acuerda, actualiza los tres, y también las respuestas de `simulador.py`.
+- **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `prompts.py` y `guia.py`
+  no importan LlamaIndex, FlagEmbedding ni clientes de LLM (o lo hacen dentro de una función), para
+  que `MODO=simulador` corra con `backend/requirements-simulador.txt`. `test_simulador.py` lo revisa.
 - **Corpus**: `data/corpus/v2/paginas.jsonl` no se edita a mano; se regenera con `ingesta.corpus`.
   Un cambio de extracción o de metadatos que altere el corpus va en una versión nueva
   (`data/corpus/v3/`), no sobre `v2`. Las tablas de la guía (`SECCIONES`, `ACTIVIDADES`,
