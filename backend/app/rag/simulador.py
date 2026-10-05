@@ -1,15 +1,16 @@
 """
-Simulador de `POST /ia/consultar-guia`: respuestas fijas, sin modelos (MODO=simulador).
+Simulador de `POST /ia/consultar-guia` y `POST /ia/sugerir-proximos-pasos`:
+respuestas fijas, sin modelos (MODO=simulador).
 
 Sirve para que la plataforma integre la API antes de tener los modelos a mano:
 devuelve una `Respuesta` (contrato.py) con los mismos campos, la misma
-validación y los mismos errores que generar.py, pero no importa LlamaIndex,
+validación y los mismos errores que generar.py y sugerir.py, pero no importa LlamaIndex,
 FlagEmbedding ni el cliente del LLM. Así corre en cualquier servidor con
 backend/requirements-simulador.txt (fastapi, uvicorn y python-dotenv).
 
-Respuestas
-----------
-Hay tres, armadas a partir de respuestas reales del sistema (corpus v2, prompt
+Preguntas (responder)
+---------------------
+Hay tres respuestas, armadas a partir de respuestas reales del sistema (corpus v2, prompt
 v4, gemma3:4b, 2026-10-05), con el formato de cita que pide el prompt y
 fragmentos acortados. Con `etapa` 1, 2 o 7 se devuelve la de esa etapa; con
 cualquier otra, o sin etapa, la del plano del servicio (etapa 7). La pregunta
@@ -24,9 +25,18 @@ Sin marca, la respuesta tiene confianza «alta». SIMULADOR_DEMORA_S agrega una
 espera, para probar los tiempos de espera de quien llama (las respuestas reales
 tardaron entre 89 y 298 s en un Mac M2 de 8 GB).
 
+Próximos pasos (sugerir)
+------------------------
+Uno por cada etapa del Propósito 1, armado con los datos de guia.py (objetivo,
+actividad y herramientas de la etapa) en el formato de prompts_etapa.py. Las
+citas tienen la forma de la línea «fuente:» del corpus («Actividad, p. N» y
+«Actividad › Herramienta, p. N»). `contexto` y `datos_etapa` no cambian el
+texto; solo se buscan en ellos las mismas marcas.
+
 Prueba rápida, desde backend/:
     python -m app.rag.simulador "¿Qué es un plano del servicio?"
     python -m app.rag.simulador "¿Cuánto cuesta? #no-encontrada" --etapa 1
+    python -m app.rag.simulador --sugerir --etapa 4 --contexto "Licencias médicas #confianza-media"
 """
 from __future__ import annotations
 
@@ -34,9 +44,10 @@ import argparse
 import json
 import time
 
-from app.rag import config
+from app.rag import config, guia
 from app.rag.contrato import Respuesta
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SUGERENCIA
+from app.rag.prompts_etapa import VERSION_PROMPT_ETAPA
 
 # Mejor puntaje del reranker para cada confianza simulada, dentro de los cortes
 # por defecto (CONFIANZA_ALTA 0,9 y CONFIANZA_MEDIA 0,7; UMBRAL 0,5).
@@ -86,6 +97,30 @@ RESPUESTAS = {
 ETAPA_POR_DEFECTO = 7
 
 
+def _caso(marcas: str) -> str:
+    """Caso que piden las marcas: «error», «no-encontrada» o la confianza («alta», «media», «baja»)."""
+    marcas = marcas.lower()
+    if "#error" in marcas:
+        raise RuntimeError("Simulador: error pedido con #error. Con los modelos, aquí llega el motivo "
+                           "(por ejemplo, que el servidor del LLM no está disponible).")
+    if "#no-encontrada" in marcas:
+        return "no-encontrada"
+    return "media" if "#confianza-media" in marcas else "baja" if "#confianza-baja" in marcas else "alta"
+
+
+def _esperar() -> float:
+    """Espera SIMULADOR_DEMORA_S y devuelve la hora de inicio, para la latencia."""
+    t0 = time.time()
+    if config.SIMULADOR_DEMORA_S > 0:
+        time.sleep(config.SIMULADOR_DEMORA_S)
+    return t0
+
+
+def _con_tope(fuentes: list[dict], puntaje: float) -> list[dict]:
+    """Ninguna fuente supera al mejor puntaje, como en una respuesta real."""
+    return [{**f, "puntaje": min(f["puntaje"], puntaje)} for f in fuentes]
+
+
 def responder(pregunta: str, etapa: int | None = None, filtrar_etapa: bool = False) -> Respuesta:
     """
     Respuesta fija con la forma de generar.responder(); la elige `etapa` y la ajustan las marcas.
@@ -93,34 +128,87 @@ def responder(pregunta: str, etapa: int | None = None, filtrar_etapa: bool = Fal
     `filtrar_etapa` se acepta para tener la misma firma, pero no cambia nada.
     Lanza RuntimeError con la marca #error, como generar.py cuando el LLM no responde.
     """
-    t0 = time.time()
-    if config.SIMULADOR_DEMORA_S > 0:
-        time.sleep(config.SIMULADOR_DEMORA_S)
-    marcas = pregunta.lower()
+    t0 = _esperar()
+    caso = _caso(pregunta)
     comunes = {"modelo": "simulador", "modo": "simulador"}
 
-    if "#error" in marcas:
-        raise RuntimeError("Simulador: error pedido con #error. Con los modelos, aquí llega el motivo "
-                           "(por ejemplo, que el servidor del LLM no está disponible).")
-    if "#no-encontrada" in marcas:
+    if caso == "no-encontrada":
         return Respuesta(resultado=f"{MENSAJE_NO_ENCONTRADA} {SUGERENCIA}", encontrada=False, confianza=None,
                          puntaje=PUNTAJE_NO_ENCONTRADA, latencia_s=round(time.time() - t0, 1), **comunes)
 
-    nivel = "media" if "#confianza-media" in marcas else "baja" if "#confianza-baja" in marcas else "alta"
-    puntaje = PUNTAJES[nivel]
+    puntaje = PUNTAJES[caso]
     texto, fuentes = RESPUESTAS.get(etapa or ETAPA_POR_DEFECTO, RESPUESTAS[ETAPA_POR_DEFECTO])
-    # Ninguna fuente supera al mejor puntaje, como en una respuesta real.
-    fuentes = [{**f, "puntaje": min(f["puntaje"], puntaje)} for f in fuentes]
-    return Respuesta(resultado=texto, encontrada=True, confianza=nivel, fuentes=fuentes, puntaje=puntaje,
-                     latencia_s=round(time.time() - t0, 1), **comunes)
+    return Respuesta(resultado=texto, encontrada=True, confianza=caso, fuentes=_con_tope(fuentes, puntaje),
+                     puntaje=puntaje, latencia_s=round(time.time() - t0, 1), **comunes)
+
+
+def proximos_pasos(etapa: int) -> tuple[str, list[dict]]:
+    """
+    Texto y fuentes fijos de la etapa, con el formato de prompts_etapa.py.
+
+    Los arma guia.py: el objetivo de la etapa se cita con la página de su
+    actividad y cada herramienta con la suya. ValueError si la etapa no existe.
+    """
+    e = guia.etapa(etapa)
+    if e is None:
+        raise ValueError(f"La etapa debe ser un número de 1 a {len(guia.PROPOSITOS[1].etapas)}.")
+    inicio = e.paginas[0]
+    actividad = f"{e.actividad}, p. {inicio}"
+    fuentes = [_fuente(e.actividad, inicio, actividad, e.objetivo, 0.99)]
+    pasos = [f"- Revisa con tu equipo en qué consiste la actividad de {e.actividad} y cuándo conviene "
+             f"desarrollarla [{actividad}]."]
+    for i, (pagina, nombre) in enumerate(e.herramientas):
+        cita = f"{e.actividad} › {nombre}, p. {pagina}"
+        fuentes.append(_fuente(nombre, pagina, cita, f"## {nombre.upper()}\n\n## ¿PARA QUÉ SIRVE?…",
+                               round(0.95 - 0.05 * i, 2)))
+        pasos.append(f"- Completa la herramienta {nombre} con la información de tu proyecto [{cita}].")
+    pasos.append("- Registra en la plataforma lo que ya completaste: así la próxima sugerencia parte desde ahí.")
+    herramienta = fuentes[1]
+    texto = (f"**Qué busca esta etapa:** {e.objetivo.rstrip('.')} [{actividad}].\n\n"
+             "**Próximos pasos:**\n" + "\n".join(pasos) + "\n\n"
+             f"**Herramienta sugerida:** {herramienta['seccion']}, la herramienta de la guía para esta "
+             f"etapa [{herramienta['fuente']}].")
+    return texto, fuentes
+
+
+def sugerir(etapa: int, contexto: str | dict | None = None, datos_etapa: dict | None = None) -> Respuesta:
+    """
+    Próximos pasos fijos con la forma de sugerir.sugerir(); los elige `etapa`.
+
+    Las marcas se buscan en `contexto` y `datos_etapa` (en las claves o en los
+    valores), que por lo demás no cambian el texto. ValueError si la etapa no
+    existe; RuntimeError con la marca #error.
+    """
+    texto, fuentes = proximos_pasos(etapa)  # valida la etapa antes de esperar
+    t0 = _esperar()
+    caso = _caso(json.dumps([contexto, datos_etapa], ensure_ascii=False))
+    comunes = {"modelo": "simulador", "modo": "simulador", "version_prompt": VERSION_PROMPT_ETAPA}
+
+    if caso == "no-encontrada":
+        return Respuesta(resultado=MENSAJE_NO_ENCONTRADA, encontrada=False, confianza=None,
+                         puntaje=PUNTAJE_NO_ENCONTRADA, latencia_s=round(time.time() - t0, 1), **comunes)
+
+    puntaje = PUNTAJES[caso]
+    return Respuesta(resultado=texto, encontrada=True, confianza=caso, fuentes=_con_tope(fuentes, puntaje),
+                     puntaje=puntaje, latencia_s=round(time.time() - t0, 1), **comunes)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("pregunta")
+    ap.add_argument("pregunta", nargs="?", default="", help="pregunta, con las marcas que quieras probar")
     ap.add_argument("--etapa", type=int, help="etapa del proyecto (1-7): elige la respuesta fija")
+    ap.add_argument("--sugerir", action="store_true", help="próximos pasos de --etapa, como sugerir.py")
+    ap.add_argument("--contexto", help="contexto del proyecto, con --sugerir (aquí van las marcas)")
     args = ap.parse_args()
-    print(json.dumps(responder(args.pregunta, args.etapa).a_dict(), ensure_ascii=False, indent=2))
+    if args.sugerir:
+        if args.etapa is None:
+            ap.error("--sugerir necesita --etapa.")
+        r = sugerir(args.etapa, args.contexto)
+    elif not args.pregunta:
+        ap.error("Falta la pregunta (o usa --sugerir --etapa N).")
+    else:
+        r = responder(args.pregunta, args.etapa)
+    print(json.dumps(r.a_dict(), ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

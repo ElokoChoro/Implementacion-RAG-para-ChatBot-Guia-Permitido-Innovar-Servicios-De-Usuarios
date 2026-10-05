@@ -1,6 +1,6 @@
 """
 Próximos pasos para un equipo que está en una etapa del Propósito 1, con citas
-a la guía. Es lo que debe devolver `POST /ia/sugerir-proximos-pasos`.
+a la guía. Es lo que devuelve `POST /ia/sugerir-proximos-pasos` (api.py).
 
   1. Recuperación: una consulta fija por etapa (consulta()), filtrada por el
      metadato `etapa`, con el reranker. No usa el texto del proyecto: así la
