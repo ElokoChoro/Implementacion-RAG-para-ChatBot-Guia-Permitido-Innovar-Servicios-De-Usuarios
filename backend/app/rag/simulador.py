@@ -45,7 +45,7 @@ import json
 import time
 
 from app.rag import config, guia
-from app.rag.contrato import Respuesta
+from app.rag.contrato import Fuente, Respuesta
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SUGERENCIA
 from app.rag.prompts_etapa import VERSION_PROMPT_ETAPA
 
@@ -56,7 +56,7 @@ PUNTAJES = {"alta": 0.95, "media": 0.8, "baja": 0.6}
 PUNTAJE_NO_ENCONTRADA = 0.3
 
 
-def _fuente(seccion: str, pagina: int, fuente: str, fragmento: str, puntaje: float) -> dict:
+def _fuente(seccion: str, pagina: int, fuente: str, fragmento: str, puntaje: float) -> Fuente:
     return {"seccion": seccion, "pagina": pagina, "fuente": fuente, "fragmento": fragmento, "puntaje": puntaje}
 
 

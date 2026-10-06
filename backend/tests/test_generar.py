@@ -11,9 +11,9 @@ from types import SimpleNamespace
 import httpx
 import openai
 import pytest
-from conftest import CAMPOS_CONTRATO, fragmento
+from conftest import CAMPOS_CONTRATO, CAMPOS_FUENTE, fragmento
 
-from app.rag import config, generar, modelos
+from app.rag import config, flujo, generar, modelos
 from app.rag.contrato import Respuesta
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
 
@@ -26,7 +26,7 @@ def _sin_llm(*_args) -> str:
     (0.95, "alta"), (0.9, "alta"), (0.89, "media"), (0.7, "media"), (0.69, "baja"), (0.5, "baja"),
 ])
 def test_confianza_por_cortes(puntaje: float, esperado: str) -> None:
-    assert generar.confianza(puntaje) == esperado
+    assert flujo.confianza(puntaje) == esperado
 
 
 def test_bajo_el_umbral_no_llama_al_llm(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -124,7 +124,9 @@ def test_respuesta_tiene_los_campos_del_contrato(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(generar, "recuperar", lambda *a, **k: [fragmento(0.8)])
     monkeypatch.setattr(generar, "_generar", lambda *a: "Respuesta.")
 
-    assert set(generar.responder("¿Qué es?").a_dict()) == CAMPOS_CONTRATO
+    r = generar.responder("¿Qué es?").a_dict()
+    assert set(r) == CAMPOS_CONTRATO
+    assert [set(f) for f in r["fuentes"]] == [CAMPOS_FUENTE]
     assert set(Respuesta(resultado="", encontrada=False, confianza=None).a_dict()) == CAMPOS_CONTRATO
 
 
@@ -151,14 +153,14 @@ class _LLMFalso:
 def test_mensajes_que_recibe_el_llm(monkeypatch: pytest.MonkeyPatch, etapa: int | None) -> None:
     # Pasa por _generar real: SISTEMA en el mensaje de sistema y la etapa en el de usuario.
     falso = _LLMFalso()
-    monkeypatch.setattr(generar, "llm", lambda: falso)
+    monkeypatch.setattr(flujo, "llm", lambda: falso)
     nodos = [fragmento(0.8)]
 
     assert generar._generar("¿Cómo hago el mapa?", etapa, nodos) == "Respuesta."
 
     sistema, usuario = falso.mensajes
     assert sistema.content == SISTEMA
-    assert usuario.content == USUARIO.format(etapa=texto_etapa(etapa), contexto=generar._contexto(nodos),
+    assert usuario.content == USUARIO.format(etapa=texto_etapa(etapa), contexto=flujo.contexto(nodos),
                                              pregunta="¿Cómo hago el mapa?")
     if etapa:
         assert "Mapa de momentos críticos" in usuario.content
@@ -193,7 +195,7 @@ def test_servidor_compatible_con_openai_apagado(proveedor, monkeypatch: pytest.M
     monkeypatch.setattr(config, "LLM_URL", "http://127.0.0.1:9/v1")
     proveedor("openai")
     with pytest.raises(RuntimeError, match=r"127\.0\.0\.1:9/v1\. Inicia el servidor del modelo y revisa LLM_URL"):
-        generar.chat([])
+        flujo.chat([])
 
 
 def test_modelo_que_no_tiene_el_servidor(proveedor, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -203,6 +205,6 @@ def test_modelo_que_no_tiene_el_servidor(proveedor, monkeypatch: pytest.MonkeyPa
     def falla(_mensajes: list) -> None:
         raise openai.NotFoundError("model not found", response=respuesta, body=None)
 
-    monkeypatch.setattr(generar, "llm", lambda: SimpleNamespace(chat=falla))
+    monkeypatch.setattr(flujo, "llm", lambda: SimpleNamespace(chat=falla))
     with pytest.raises(RuntimeError, match="no tiene el modelo"):
-        generar.chat([])
+        flujo.chat([])

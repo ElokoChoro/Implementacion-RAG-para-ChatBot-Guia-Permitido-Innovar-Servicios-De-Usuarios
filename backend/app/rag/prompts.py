@@ -70,11 +70,23 @@ Pregunta: {pregunta}"""
 # los fragmentos, y una página en el contexto de la etapa invitaría a citarla.
 # Unas 95 palabras por etapa (ver con --etapa), por gemma3:4b en un Mac de 8 GB.
 ETAPA = """{numero} {nombre}
-- Propósito {proposito}: {nombre_proposito}
+{datos}
+La etapa sirve para saber a qué herramienta o actividad se refiere la pregunta; no es un fragmento de la guía y no se cita."""
+
+# Datos de la etapa que reciben los dos prompts (también prompts_etapa.py), desde guia.py.
+DATOS_ETAPA = """- Propósito {proposito}: {nombre_proposito}
 - Actividad de la guía: {actividad}
 - Objetivo de la etapa: {objetivo}
-- {rotulo_herramientas}: {herramientas}
-La etapa sirve para saber a qué herramienta o actividad se refiere la pregunta; no es un fragmento de la guía y no se cita."""
+- {rotulo_herramientas}: {herramientas}"""
+
+
+def datos_etapa(e: guia.Etapa, proposito: int = 1) -> str:
+    """Propósito, actividad, objetivo y herramientas de la etapa, como los lee el LLM."""
+    herramientas = [nombre for _, nombre in e.herramientas]
+    return DATOS_ETAPA.format(
+        proposito=proposito, nombre_proposito=guia.PROPOSITOS[proposito].nombre, actividad=e.actividad,
+        objetivo=e.objetivo, herramientas=", ".join(herramientas),
+        rotulo_herramientas="Herramientas de la etapa" if len(herramientas) > 1 else "Herramienta de la etapa")
 
 
 def texto_etapa(etapa: int | None, proposito: int = 1) -> str:
@@ -84,12 +96,7 @@ def texto_etapa(etapa: int | None, proposito: int = 1) -> str:
     e = guia.etapa(etapa, proposito)
     if e is None:
         return str(etapa)
-    herramientas = [nombre for _, nombre in e.herramientas]
-    return ETAPA.format(
-        numero=e.numero, nombre=e.nombre, proposito=proposito,
-        nombre_proposito=guia.PROPOSITOS[proposito].nombre, actividad=e.actividad,
-        objetivo=e.objetivo, herramientas=", ".join(herramientas),
-        rotulo_herramientas="Herramientas de la etapa" if len(herramientas) > 1 else "Herramienta de la etapa")
+    return ETAPA.format(numero=e.numero, nombre=e.nombre, datos=datos_etapa(e, proposito))
 
 
 def main():

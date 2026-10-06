@@ -49,3 +49,17 @@ def test_llm_api_key_del_entorno_del_llavero_o_por_defecto(monkeypatch: pytest.M
     assert config.llm_api_key() == "del-llavero"
     monkeypatch.setenv("LLM_API_KEY", "del-entorno")
     assert config.llm_api_key() == "del-entorno"
+
+
+def test_opcion_valida_sin_importar_mayusculas(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PRUEBA_RAG", " Simulador ")
+    assert config._env_opcion("PRUEBA_RAG", "local", ("local", "simulador")) == "simulador"
+    monkeypatch.delenv("PRUEBA_RAG")
+    assert config._env_opcion("PRUEBA_RAG", "local", ("local", "simulador")) == "local"
+
+
+def test_opcion_invalida_falla_al_leerla(monkeypatch: pytest.MonkeyPatch) -> None:
+    # «MODO=simuladr» no debe cargar los modelos sin avisar.
+    monkeypatch.setenv("PRUEBA_RAG", "simuladr")
+    with pytest.raises(ValueError, match="PRUEBA_RAG='simuladr' no es válido. Usa uno de: local, simulador"):
+        config._env_opcion("PRUEBA_RAG", "local", ("local", "simulador"))

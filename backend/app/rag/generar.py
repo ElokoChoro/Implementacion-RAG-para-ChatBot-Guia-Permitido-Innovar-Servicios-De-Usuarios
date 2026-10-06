@@ -13,6 +13,8 @@ Respuesta a una pregunta sobre la guía, con citas y nivel de confianza.
 
 Las fuentes de la respuesta salen de los fragmentos, no del texto del LLM, y la
 confianza sale del mejor puntaje del reranker (CONFIANZA_MEDIA, CONFIANZA_ALTA).
+El umbral, la llamada al LLM y la forma de la respuesta son los mismos de
+sugerir.py: están en flujo.py. Cada respuesta deja en el log cuánto tardaron la recuperación y el LLM (registro.py).
 La forma de la respuesta (`Respuesta`) está en contrato.py.
 
 Prueba rápida, desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
@@ -23,46 +25,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import time
 
-import httpx
-import openai
 from llama_index.core.llms import ChatMessage, MessageRole
-from llama_index.core.postprocessor import SimilarityPostprocessor
-from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
-from ollama import ResponseError
+from llama_index.core.schema import NodeWithScore
 
-from app.rag import config
+from app.rag import registro
 from app.rag.contrato import Respuesta
-from app.rag.modelos import llm
+from app.rag.flujo import armar_respuesta, chat, contexto, sobre_el_umbral
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
 from app.rag.recuperar import recuperar
 
-
-def confianza(puntaje: float) -> str:
-    """Nivel de confianza según el mejor puntaje del reranker."""
-    if puntaje >= config.CONFIANZA_ALTA:
-        return "alta"
-    if puntaje >= config.CONFIANZA_MEDIA:
-        return "media"
-    return "baja"
-
-
-def _fuente(n: NodeWithScore) -> dict:
-    """Cita de un fragmento: herramienta, actividad o sección (la más específica) y página."""
-    m = n.node.metadata
-    return {
-        "seccion": m.get("herramienta") or m.get("actividad") or m.get("seccion"),
-        "pagina": m["pagina_inicio"],
-        "fuente": m["fuente"],  # «Sección › Herramienta, p. N», como lo cita el LLM
-        "fragmento": n.node.get_content()[:300],
-        "puntaje": round(float(n.score), 3),
-    }
-
-
-def _contexto(nodos: list[NodeWithScore]) -> str:
-    """Fragmentos para el prompt; cada uno empieza con su línea «fuente:»."""
-    return "\n\n---\n\n".join(n.node.get_content(metadata_mode=MetadataMode.LLM) for n in nodos)
+log = logging.getLogger("app.rag.generar")  # no __name__: con python -m vale «__main__»
 
 
 def _generar(pregunta: str, etapa: int | None, nodos: list[NodeWithScore]) -> str:
@@ -70,35 +45,8 @@ def _generar(pregunta: str, etapa: int | None, nodos: list[NodeWithScore]) -> st
     return chat([
         ChatMessage(role=MessageRole.SYSTEM, content=SISTEMA),
         ChatMessage(role=MessageRole.USER, content=USUARIO.format(
-            etapa=texto_etapa(etapa), contexto=_contexto(nodos), pregunta=pregunta)),
+            etapa=texto_etapa(etapa), contexto=contexto(nodos), pregunta=pregunta)),
     ])
-
-
-def chat(mensajes: list[ChatMessage]) -> str:
-    """Respuesta del LLM a `mensajes`. RuntimeError con qué hacer si el servidor del LLM falla."""
-    try:
-        return (llm().chat(mensajes).message.content or "").strip()
-    # APITimeoutError hereda de APIConnectionError: va antes.
-    except (httpx.TimeoutException, openai.APITimeoutError) as e:
-        raise RuntimeError(f"El modelo no respondió en {config.TIMEOUT_S:.0f} s. "
-                           "Sube TIMEOUT_S o usa un modelo más chico.") from e
-    except (ConnectionError, openai.APIConnectionError) as e:
-        como = ("Inicia Ollama (ollama serve)." if config.PROVEEDOR_LLM == "ollama"
-                else "Inicia el servidor del modelo y revisa LLM_URL en .env.")
-        raise RuntimeError(f"El modelo no está disponible en {config.url_llm()}. {como}") from e
-    except ResponseError as e:
-        if e.status_code == 404:
-            raise RuntimeError(f"Ollama no tiene el modelo «{config.LLM}». "
-                               f"Descárgalo con: ollama pull {config.LLM}") from e
-        raise RuntimeError(f"Error del modelo: {e.error}") from e
-    except openai.NotFoundError as e:
-        raise RuntimeError(f"El servidor en {config.LLM_URL} no tiene el modelo «{config.LLM}». "
-                           f"Revisa el nombre en {config.LLM_URL}/models y ponlo en LLM.") from e
-    except openai.AuthenticationError as e:
-        raise RuntimeError(f"El servidor en {config.LLM_URL} rechazó la clave. Guárdala con: "
-                           "python -m app.rag.secretos guardar LLM_API_KEY") from e
-    except openai.APIStatusError as e:
-        raise RuntimeError(f"Error del modelo: {e.message}") from e
 
 
 def responder(pregunta: str, etapa: int | None = None, filtrar_etapa: bool = False) -> Respuesta:
@@ -111,25 +59,19 @@ def responder(pregunta: str, etapa: int | None = None, filtrar_etapa: bool = Fal
     """
     t0 = time.time()
     # El umbral está calibrado sobre el puntaje del reranker, así que siempre se usa.
-    nodos = recuperar(pregunta, etapa if filtrar_etapa else None, usar_reranker=True)
-    mejor = round(float(nodos[0].score), 3) if nodos else None
-    nodos = SimilarityPostprocessor(similarity_cutoff=config.UMBRAL).postprocess_nodes(
-        nodos, query_bundle=QueryBundle(pregunta))
+    nodos, mejor = sobre_el_umbral(recuperar(pregunta, etapa if filtrar_etapa else None, usar_reranker=True),
+                                   pregunta)
+    tiempos = {"etapa": etapa, "filtrar_etapa": filtrar_etapa, "largo_pregunta": len(pregunta), "mejor": mejor,
+               "fragmentos": len(nodos), "t_recuperacion_s": round(time.time() - t0, 1)}
 
     if not nodos:  # ningún fragmento es relevante: no se llama al LLM
-        return Respuesta(resultado=f"{MENSAJE_NO_ENCONTRADA} {SUGERENCIA}", encontrada=False, confianza=None,
-                         puntaje=mejor, latencia_s=round(time.time() - t0, 1))
+        log.info(registro.campos(**tiempos, llm="no", encontrada=False))
+        return armar_respuesta(f"{MENSAJE_NO_ENCONTRADA} {SUGERENCIA}", nodos, mejor, t0)
 
-    texto = _generar(pregunta, etapa, nodos)
-    encontrada = not texto.startswith(MENSAJE_NO_ENCONTRADA)
-    return Respuesta(
-        resultado=texto,
-        encontrada=encontrada,
-        confianza=confianza(mejor) if encontrada else None,
-        fuentes=[_fuente(n) for n in nodos] if encontrada else [],
-        puntaje=mejor,
-        latencia_s=round(time.time() - t0, 1),
-    )
+    t1 = time.time()
+    r = armar_respuesta(_generar(pregunta, etapa, nodos), nodos, mejor, t0)
+    log.info(registro.campos(**tiempos, t_llm_s=round(time.time() - t1, 1), encontrada=r.encontrada))
+    return r
 
 
 def main():
@@ -139,6 +81,7 @@ def main():
     ap.add_argument("--filtrar-etapa", action="store_true", help="busca solo fragmentos de esa etapa")
     ap.add_argument("--json", action="store_true", help="salida con la forma del contrato")
     args = ap.parse_args()
+    registro.configurar()
 
     r = responder(args.pregunta, args.etapa, args.filtrar_etapa)
     if args.json:
