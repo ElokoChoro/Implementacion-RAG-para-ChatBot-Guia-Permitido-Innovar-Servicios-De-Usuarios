@@ -189,7 +189,7 @@ for _p in PROPOSITOS.values():
 # Etapa (1 a 7) -> actividad, para etiquetar el corpus. Son las etapas del
 # Propósito 1, el que usa hoy la plataforma: si se suman otros propósitos, el
 # corpus sigue etiquetado con estas, porque cambiar estos valores cambiaría
-# data/corpus/v2 y obligaría a una versión nueva del corpus.
+# el corpus (data/corpus/v3) y obligaría a una versión nueva.
 ETAPAS = {e.numero: e.actividad for e in PROPOSITOS[1].etapas}
 
 

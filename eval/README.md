@@ -54,21 +54,29 @@ Mac M2 de 8 GB (`resultados/comparacion_embeddings.json`):
 
 `calibrar_umbral.py` recupera los 4 fragmentos de cada una de las 63 preguntas con el reranker (sin
 LLM) y prueba umbrales sobre el mejor puntaje. Si ningún fragmento llega al umbral, se responde «No
-encuentro esa información en la guía.» sin llamar al LLM. Resultado del 2026-10-01 con el corpus `v2`
-(`guia_v2_bge-m3_c400o50`, `resultados/umbral.json`):
+encuentro esa información en la guía.» sin llamar al LLM. Resultado del 2026-10-06 con el corpus `v3`
+(`guia_v3_bge-m3_c400o50`, `resultados/umbral.json`):
 
 | Umbral | Rechazo de las 9 `fuera` | Falsos «no encuentro» (51 `respondible`) | `recall@4` tras el corte | Ambiguas rechazadas (de 3) |
 | --- | --- | --- | --- | --- |
 | 0,1 | 77,8 | 0 | 98,0 | 0 |
 | 0,3 | 77,8 | 0 | 98,0 | 2 |
+| 0,4 | 88,9 | 0 | 98,0 | 2 |
 | **0,5** | **100** | **0** | **98,0** | 3 |
 | 0,7 | 100 | 0 | 98,0 | 3 |
 | 0,8 | 100 | 3,9 | 94,1 | 3 |
 | 0,9 | 100 | 11,8 | 84,3 | 3 |
 
-- El reranker separa muy bien las dos clases: las preguntas de fuera llegan como máximo a 0,398 (P-055,
+- El reranker separa muy bien las dos clases: las preguntas de fuera llegan como máximo a 0,417 (P-055,
   presupuesto mínimo, cerca del Plan de comunicaciones) y las respondibles parten en 0,719 (P-060,
-  «¿Por quién fue realizada la guía?»). Cualquier umbral entre 0,4 y 0,7 acierta en todas.
+  «¿Por quién fue realizada la guía?»). Cualquier umbral entre 0,5 y 0,7 acierta en todas.
+- Frente al corpus `v2`, la limpieza del texto (`ingesta/limpieza.py`) deja igual el `recall@4` (98,0),
+  las franjas de confianza y los fragmentos que llegan al LLM (3,0 en promedio), y sube el MRR de
+  0,956 a 0,961 (P-050 encuentra la sección en el 2.º lugar en vez del 4.º). Con `v2`, el texto de
+  las páginas de muestra de las págs. 52 y 53 llegaba entre los 4 fragmentos de P-028, P-029, P-036
+  y P-050, con puntajes de 0,66 a 0,99, y se citaba como «Actividades y herramientas, p. 52»; con
+  `v3` esos lugares los ocupan Adopción (págs. 58-59) y la Ficha de contexto institucional (p. 78),
+  donde está ese texto. P-055 sube de 0,398 a 0,417: sigue bajo el umbral, pero 0,4 ya no sirve.
 - Frente al corpus `v1` (58 preguntas, umbral sin errores de 0,4 a 0,8), las 58 preguntas originales
   no cambian salvo P-019 (inteligencia artificial, `fuera`), que sube de 0,11 a 0,35 por los
   prólogos y sigue bajo el umbral. Con `v1`, las preguntas de autoría se rechazaban: los créditos no
@@ -93,18 +101,18 @@ encuentro esa información en la guía.» sin llamar al LLM. Resultado del 2026-
 `comparar_almacenes.py` recupera los 20 candidatos de cada pregunta (sin reranker) en Chroma y en
 pgvector (Supabase) y compara los fragmentos, los puntajes y el recall de cada uno. Con el índice
 copiado desde Chroma (`ingesta.indexar --desde-chroma`) los dos tienen los mismos vectores y
-deberían coincidir. Resultado del 2026-10-01, con los 221 fragmentos de `guia_v2_bge-m3_c400o50`
+deberían coincidir. Resultado del 2026-10-06, con los 213 fragmentos de `guia_v3_bge-m3_c400o50`
 copiados a Supabase (`resultados/comparacion_almacenes.json`):
 
 | Almacén | `recall@4` | `mrr@4` | `recall@20` | Segundos por pregunta |
 | --- | --- | --- | --- | --- |
-| Chroma (local) | 94,2 | 0,885 | 100 | 0,23 |
-| pgvector (Supabase, `sa-east-1`) | 94,2 | 0,885 | 100 | 0,94 |
+| Chroma (local) | 96,2 | 0,904 | 100 | 0,22 |
+| pgvector (Supabase, `sa-east-1`) | 96,2 | 0,904 | 100 | 0,89 |
 
 - Los dos devuelven los mismos 20 candidatos, en el mismo orden, en las 52 preguntas.
-- Sin reranker fallan P-009, P-050 y P-053. P-050 es nueva respecto de `v1` (95,7 % sobre 47
-  preguntas): las páginas agregadas la sacan de los 4 primeros por similitud, pero sigue entre los 20
-  candidatos y, con el reranker, el resultado es idéntico al de `v1`.
+- Sin reranker fallan P-009 y P-053. Con `v2` (221 fragmentos, 94,2 % y MRR 0,885) fallaba también
+  P-050: los dos fragmentos de la p. 52, con el texto de la página de muestra de Adopción, la
+  sacaban de los 4 primeros. La limpieza de `v3` quita ese texto y P-050 vuelve a entrar.
 - El puntaje de similitud cambia de escala, no de orden: Chroma entrega `exp(-distancia)` y
   pgvector `1 - distancia` (las distancias coinciden hasta 10⁻⁶). No afecta al umbral ni a la
   confianza, que usan el puntaje del reranker; sí habría que recalibrar si se usara el umbral sin

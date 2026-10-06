@@ -76,14 +76,14 @@ resultados se versionan en [`eval/`](eval/README.md).
 
 ## 📈 Resultados
 
-Sobre el set de 63 preguntas y el corpus `v2` ([detalle](eval/README.md)), en un Mac M2 de 8 GB:
+Sobre el set de 63 preguntas y el corpus `v3` ([detalle](eval/README.md)), en un Mac M2 de 8 GB:
 
 <div align="center">
 
 | | Métrica | Valor |
 | :---: | --- | :---: |
 | 🔎 | Sección correcta entre los 4 fragmentos (`recall@4`, con reranker) | **98,0 %** |
-| 🥇 | Posición del primer fragmento correcto (`MRR@4`) | **0,956** |
+| 🥇 | Posición del primer fragmento correcto (`MRR@4`) | **0,961** |
 | 🚫 | Preguntas fuera de la guía rechazadas (umbral 0,5) | **100 %** |
 | ✅ | Preguntas respondibles rechazadas por error | **0 %** |
 | 🟢 | Respondibles con confianza `alta` (reranker ≥ 0,9) | **45 de 51** |
@@ -99,7 +99,7 @@ flowchart LR
     subgraph ING["📥 Ingesta (una vez)"]
         direction LR
         PDF["📄 PDF de la guía"] -->|"Docling standard<br>sin OCR"| JSON["JSON por página"]
-        JSON --> CORPUS["paginas.jsonl<br>corpus v2"]
+        JSON --> CORPUS["paginas.jsonl<br>corpus v3"]
         CORPUS -->|"SentenceSplitter<br>400 / 50"| FRAG["221 fragmentos"]
         FRAG -->|"bge-m3"| IDX[("Índice<br>Chroma o pgvector")]
     end
@@ -120,7 +120,7 @@ flowchart LR
 | Pieza | Elección | Configuración ([`config.py`](backend/app/rag/config.py)) |
 | --- | --- | --- |
 | 📄 Extracción | Docling 2.131, pipeline `standard`, sin OCR | — |
-| 📚 Corpus | `v2`, una página por registro: créditos (p. 2), prólogos (8–11) y págs. 13–163 | `VERSION_CORPUS` |
+| 📚 Corpus | `v3`, una página por registro: créditos (p. 2), prólogos (8–11) y págs. 13–163, con el texto limpio | `VERSION_CORPUS` |
 | ✂️ Fragmentos | `SentenceSplitter` de LlamaIndex, 400 tokens, solapamiento 50 | `CHUNK_TOKENS`, `CHUNK_OVERLAP` |
 | 🧮 Embeddings | `BAAI/bge-m3` con FlagEmbedding, densos, 1024 dimensiones | `EMBEDDINGS` |
 | 🗄️ Vector store | Chroma local o pgvector en Supabase, distancia coseno | `ALMACEN`, `RUTA_CHROMA`, `SUPABASE_DB_URL` |
@@ -168,6 +168,20 @@ párrafo `[Figura] …`.
 
 Cada página lleva sección, actividad, herramienta y etapa, para citar «sección, p. N» y filtrar por
 etapa. Formato en [data/corpus/README.md](data/corpus/README.md).
+
+</details>
+
+<details>
+<summary><b>Limpieza del texto extraído</b></summary>
+<br>
+
+Docling deja restos del diseño de la guía: palabras cortadas con guion en los diagramas
+(«HABILITA- CIÓN»), títulos de herramienta en desorden («MAPA DE COVALOR»), párrafos partidos en
+dos y números de paso sueltos. En las págs. 52 y 53, además, la figura es una página de muestra y
+Docling leía su texto como si fuera de esas páginas. Desde `v3`, [`ingesta/limpieza.py`](ingesta/limpieza.py)
+corrige cada tipo de problema con una regla, y lo que no sigue un patrón con una corrección
+contrastada con el PDF. La limpieza va en el código y no a mano, para que se repita igual en cada
+regeneración y los embeddings se calculen con el texto limpio.
 
 </details>
 
@@ -242,7 +256,7 @@ La consulta sola (sin Docling) necesita únicamente `backend/requirements.txt`.
 ollama pull gemma3:4b
 ```
 
-**3. Construye el índice.** El corpus `v2` ya está en el repositorio, así que basta con indexar:
+**3. Construye el índice.** El corpus `v3` ya está en el repositorio, así que basta con indexar:
 
 ```bash
 .venv/bin/python -m ingesta.indexar
@@ -299,8 +313,8 @@ Por ejemplo, si cambia la guía o la versión de Docling:
 ```
 
 `ingesta.extraer` compara el hash del PDF con `data/fuentes/guia.yaml`. `ingesta.corpus --ver 148`
-muestra cómo quedó una página. Un cambio que altere el corpus va en una versión nueva
-(`data/corpus/v3/`), no sobre `v2`.
+muestra cómo quedó una página (con `--crudo`, antes de la limpieza). Un cambio que altere el corpus
+va en una versión nueva (`data/corpus/v4/`), no sobre `v3`.
 
 </details>
 
@@ -555,7 +569,7 @@ no pide clave: así funciona el chatbot de prueba.
 Los tests de [`backend/tests/`](backend/tests/) prueban lo que decide el backend sin cargar modelos
 ni llamar a Ollama: el umbral, la confianza, las fuentes, la detección del rechazo del LLM, los
 campos del contrato, la validación de la API y las etapas con el contexto que recibe el LLM
-(contrastadas con el corpus `v2`). Corren en segundos.
+(contrastadas con el corpus `v3`) y las reglas de limpieza del corpus. Corren en segundos.
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
@@ -581,9 +595,9 @@ mes las actualizaciones de npm, pip y GitHub Actions.
 │   │                       respuesta) y simulador (respuestas fijas, sin modelos)
 │   ├── requirements-simulador.txt  Solo la API con MODO=simulador
 │   └── tests/              Tests con pytest, sin modelos ni Ollama
-├── ingesta/                PDF → JSON de Docling → corpus → índice vectorial
+├── ingesta/                PDF → JSON de Docling → corpus (con limpieza) → índice vectorial
 ├── data/
-│   ├── corpus/v2/          Corpus versionado, una página por línea (paginas.jsonl)
+│   ├── corpus/v3/          Corpus vigente, una página por línea (paginas.jsonl); v2, el anterior
 │   └── fuentes/guia.yaml   Manifiesto y SHA-256 del PDF (el PDF no se versiona)
 ├── eval/                   Preguntas, scripts de comparación y calibración, resultados
 ├── supabase/migrations/    Tabla public.data_guia_fragmentos con pgvector

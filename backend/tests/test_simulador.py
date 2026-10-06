@@ -24,7 +24,7 @@ from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SUGERENCIA
 from app.rag.prompts_etapa import VERSION_PROMPT_ETAPA
 
 BACKEND = Path(__file__).resolve().parents[1]
-CORPUS = BACKEND.parent / "data" / "corpus" / "v2" / "paginas.jsonl"
+CORPUS = BACKEND.parent / "data" / "corpus" / "v3" / "paginas.jsonl"
 ETAPAS = [e.numero for e in guia.PROPOSITOS[1].etapas]
 
 

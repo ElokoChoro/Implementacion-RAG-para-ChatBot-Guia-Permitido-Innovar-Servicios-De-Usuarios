@@ -10,6 +10,7 @@ app/rag/guia.py).
 
     python -m ingesta.corpus
     python -m ingesta.corpus --ver 148   # muestra cómo quedó una página
+    python -m ingesta.corpus --ver 148 --crudo   # la misma página antes de limpiarla
 
 Formato de cada registro: ver data/corpus/README.md.
 """
@@ -33,6 +34,7 @@ from docling_core.types.doc.document import (
 from app.rag import config
 from app.rag.guia import ACTIVIDADES, ETAPAS, HERRAMIENTAS, SECCIONES
 from ingesta.extraer import RAIZ, SALIDA as ENTRADA
+from ingesta.limpieza import FIGURAS_DE_MUESTRA, limpiar, repite, unir_cortes
 
 # Páginas que entran al índice: los créditos (2), los prólogos (8-11), de la
 # Introducción al Glosario (13-161) y «¿Cómo elaboramos esta guía?» (162-163).
@@ -116,7 +118,7 @@ CAPAS = {ContentLayer.BODY, ContentLayer.FURNITURE}
 ETIQUETAS = DEFAULT_EXPORT_LABELS - {DocItemLabel.PAGE_FOOTER}
 
 
-def texto_figura(doc: DoclingDocument, figura: PictureItem) -> str:
+def texto_figura(doc: DoclingDocument, figura: PictureItem, limpio: bool = True) -> str:
     """
     Texto que Docling encontró dentro de una figura (láminas, fichas, viajes,
     listas de actividades), unido en un párrafo: viene cortado línea a línea.
@@ -125,16 +127,23 @@ def texto_figura(doc: DoclingDocument, figura: PictureItem) -> str:
                                                     included_content_layers=CAPAS)
               if isinstance(it, TextItem) and it.text.strip()]
     texto = re.sub(r"\s+", " ", " ".join(partes)).strip()
-    return f"[Figura] {texto}" if len(texto.split()) >= 3 else ""
+    if len(texto.split()) < 3:
+        return ""
+    # Sin letras («3 4 5 2») son los números de los propósitos en los círculos de
+    # «Esta actividad aparece en…»: los propósitos ya están escritos al lado.
+    if limpio and not re.search(r"[^\W\d_]", texto):
+        return ""
+    return f"[Figura] {unir_cortes(texto) if limpio else texto}"
 
 
-def texto_pagina(doc: DoclingDocument, n: int) -> str:
+def texto_pagina(doc: DoclingDocument, n: int, limpio: bool = True) -> str:
     """
     Markdown de la página `n`, con el texto de cada figura en su lugar.
 
     Muchas páginas son láminas o fichas cuyo contenido está dentro de una
     imagen; Docling reconoce ese texto y lo cuelga de la figura. Se inserta como
-    un párrafo «[Figura] …» para que también se pueda recuperar.
+    un párrafo «[Figura] …» para que también se pueda recuperar. Con
+    `limpio=False` queda tal como sale de Docling, sin `limpiar()` (corpus v2).
     """
     texto = doc.export_to_markdown(page_no=n, image_placeholder=FIGURA, escape_html=False,
                                    escape_underscores=False, compact_tables=True,
@@ -144,20 +153,31 @@ def texto_pagina(doc: DoclingDocument, n: int) -> str:
                if isinstance(it, PictureItem)]
     if texto.count(FIGURA) != len(figuras):
         sys.exit(f"Pág. {n}: {texto.count(FIGURA)} marcadores y {len(figuras)} figuras")
+    resto = texto.replace(FIGURA, " ")
     for figura in figuras:
-        texto = texto.replace(FIGURA, texto_figura(doc, figura), 1)
+        tf = texto_figura(doc, figura, limpio)
+        if limpio and (n in FIGURAS_DE_MUESTRA or repite(tf, resto)):
+            tf = ""
+        texto = texto.replace(FIGURA, tf, 1)
     texto = html.unescape(texto)
     texto = "\n".join(linea.rstrip() for linea in texto.split("\n"))
-    return re.sub(r"\n{3,}", "\n\n", texto).strip()
+    texto = re.sub(r"\n{3,}", "\n\n", texto).strip()
+    return limpiar(texto, n) if limpio else texto
 
 
-def paginas(doc: DoclingDocument) -> list[dict]:
-    """Registros del corpus: una página por registro, de las PAGINAS indexadas y con texto suficiente."""
+def paginas(doc: DoclingDocument, limpio: bool = True) -> list[dict]:
+    """
+    Registros del corpus: una página por registro, de las PAGINAS indexadas y con texto suficiente.
+
+    El corpus v2 se generó sin limpieza: con VERSION_CORPUS=v2 se sigue
+    obteniendo el mismo archivo.
+    """
+    limpio = limpio and config.VERSION_CORPUS != "v2"
     registros = []
     for n in sorted(doc.pages):
         if n not in PAGINAS:
             continue
-        texto = FICHA_CREDITOS if n == 2 else texto_pagina(doc, n)
+        texto = FICHA_CREDITOS if n == 2 else texto_pagina(doc, n, limpio)
         if len(texto.split()) < PALABRAS_MINIMAS:
             continue
         ubic = ubicar(n)
@@ -178,12 +198,13 @@ def paginas(doc: DoclingDocument) -> list[dict]:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ver", type=int, help="muestra la página indicada y sale")
+    ap.add_argument("--crudo", action="store_true", help="con --ver, la página sin limpiar, como sale de Docling")
     args = ap.parse_args()
 
     if not ENTRADA.exists():
         sys.exit(f"Falta {ENTRADA.relative_to(RAIZ)}. Ejecuta primero:  "
                  "python -m ingesta.extraer /ruta/a/Guia_ComoInnovar.pdf")
-    registros = paginas(DoclingDocument.load_from_json(ENTRADA))
+    registros = paginas(DoclingDocument.load_from_json(ENTRADA), limpio=not args.crudo)
 
     if args.ver:
         r = next((r for r in registros if r["pagina_inicio"] == args.ver), None)
