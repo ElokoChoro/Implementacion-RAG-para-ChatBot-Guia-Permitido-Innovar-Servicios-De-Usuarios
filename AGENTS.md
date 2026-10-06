@@ -69,8 +69,8 @@ no dependa de los modelos (un corte, un campo, una validación) lleva su test en
 Requisitos de los modelos: la primera ejecución descarga bge-m3 y el reranker desde Hugging Face
 (~2,3 GB cada uno). La generación necesita Ollama corriendo con `ollama pull gemma3:4b` o, con
 `PROVEEDOR_LLM=openai`, otro servidor compatible con la API de OpenAI, en el mismo equipo o en otro
-(README, «LLM en cada equipo»). Todo cliente del LLM se crea en `llm()` y sus errores se traducen
-en `flujo.chat()`: un proveedor nuevo va en esos dos lugares. El equipo
+(README, «LLM en cada equipo»). Todo cliente del LLM se crea en `llm()`, sus errores se traducen
+en `flujo.chat()` y sus tokens se leen en `flujo.tokens()`: un proveedor nuevo va en esos lugares. El equipo
 de referencia es un Mac M2 de 8 GB: no cargues más modelos de los necesarios en un mismo proceso y
 usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean una sola instancia.
 

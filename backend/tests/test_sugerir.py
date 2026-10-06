@@ -7,6 +7,7 @@ import pytest
 from conftest import fragmento
 
 from app.rag import config, sugerir
+from app.rag.flujo import Tokens
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA
 from app.rag.prompts_etapa import (
     PROYECTO_VACIO,
@@ -125,7 +126,8 @@ def test_sugerir_filtra_por_etapa_y_ajusta_citas(monkeypatch: pytest.MonkeyPatch
 
     def chat_falso(mensajes):
         recibidos.append(mensajes)
-        return "**Qué busca esta etapa:** Comprender [fuente: Investigación, p. 108]. Plan [Investigación, p. 110]."
+        return ("**Qué busca esta etapa:** Comprender [fuente: Investigación, p. 108]. Plan [Investigación, p. 110].",
+                Tokens())
 
     monkeypatch.setattr(sugerir, "recuperar", recuperar_falso)
     monkeypatch.setattr(sugerir, "chat", chat_falso)
@@ -151,7 +153,7 @@ def test_sugerir_sin_fragmentos_no_llama_al_llm(monkeypatch: pytest.MonkeyPatch)
 
 def test_sugerir_rechazo_del_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sugerir, "recuperar", lambda *a, **k: _nodos())
-    monkeypatch.setattr(sugerir, "chat", lambda m: f"{MENSAJE_NO_ENCONTRADA} Nada más.")
+    monkeypatch.setattr(sugerir, "chat", lambda m: (f"{MENSAJE_NO_ENCONTRADA} Nada más.", Tokens()))
     r = sugerir.sugerir(1)
     assert not r.encontrada and r.confianza is None and r.fuentes == []
 
@@ -164,7 +166,7 @@ def test_sugerir_valida_la_etapa_antes_de_buscar(monkeypatch: pytest.MonkeyPatch
 
 def test_respuesta_con_la_forma_del_contrato(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sugerir, "recuperar", lambda *a, **k: _nodos())
-    monkeypatch.setattr(sugerir, "chat", lambda m: "Respuesta.")
+    monkeypatch.setattr(sugerir, "chat", lambda m: ("Respuesta.", Tokens()))
     campos = set(sugerir.sugerir(1).a_dict())
     assert {"resultado", "encontrada", "confianza", "fuentes", "modelo", "version_prompt", "modo"} <= campos
 
@@ -173,7 +175,8 @@ def test_chat_comun_con_generar(monkeypatch: pytest.MonkeyPatch) -> None:
     # sugerir usa la misma llamada al LLM que generar (flujo.py), con sus mensajes de error.
     from app.rag import flujo, generar
 
-    falso = SimpleNamespace(chat=lambda mensajes: SimpleNamespace(message=SimpleNamespace(content=" Hola. ")))
+    falso = SimpleNamespace(chat=lambda mensajes: SimpleNamespace(
+        message=SimpleNamespace(content=" Hola. "), additional_kwargs={"prompt_tokens": 40, "completion_tokens": 2}))
     monkeypatch.setattr(flujo, "llm", lambda: falso)
     assert sugerir.chat is generar.chat is flujo.chat
-    assert flujo.chat([]) == "Hola."
+    assert flujo.chat([]) == ("Hola.", Tokens(40, 2))

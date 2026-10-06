@@ -570,18 +570,32 @@ el índice al arrancar, en segundo plano, y la primera consulta no los espera; c
 servidor que atiende a la plataforma. El LLM lo carga su propio servidor con la primera consulta.
 
 **Log.** Cada solicitud deja una línea `clave=valor` en el log de uvicorn, y cada respuesta otra con
-el desglose de tiempos ([`registro.py`](backend/app/rag/registro.py)). No guardan el texto de la
-pregunta ni del proyecto, solo su largo. Por ejemplo, la primera pregunta tras arrancar (la
-recuperación incluye cargar los modelos) en un Mac M2 de 8 GB, y una consulta con la cola llena:
+el desglose de tiempos y los tokens del LLM ([`registro.py`](backend/app/rag/registro.py)). No
+guardan el texto de la pregunta ni del proyecto, solo su largo. Por ejemplo, la primera pregunta tras
+arrancar (la recuperación incluye cargar los modelos) en un Mac M2 de 8 GB, una pregunta que el
+umbral rechaza y una consulta con la cola llena:
 
 ```text
-INFO app.rag.generar: etapa=- filtrar_etapa=false largo_pregunta=30 mejor=0.95 fragmentos=4 t_recuperacion_s=22.1 t_llm_s=23.5 encontrada=true
-INFO app.api: ruta=consultar-guia estado=200 espera_s=0 latencia_s=45.6 encontrada=true confianza=alta mejor=0.95 fuentes=4 modo=local prompt=v4
+INFO app.rag.generar: etapa=- filtrar_etapa=false largo_pregunta=30 mejor=0.95 fragmentos=4 t_recuperacion_s=25.9 t_llm_s=53.3 tokens_prompt=1683 tokens_respuesta=78 encontrada=true
+INFO app.api: ruta=consultar-guia estado=200 espera_s=0 latencia_s=79.2 encontrada=true confianza=alta mejor=0.95 fuentes=4 modo=local prompt=v4
+INFO app.rag.generar: etapa=- filtrar_etapa=false largo_pregunta=32 mejor=0.032 fragmentos=0 t_recuperacion_s=101.6 llm=no tokens_prompt=0 tokens_respuesta=0 encontrada=false
 WARNING app.api: ruta=consultar-guia estado=503 motivo=cola_llena
 ```
 
 `mejor` es el puntaje del reranker, también en las preguntas rechazadas: con `grep llm=no` salen las
 que no pasaron el `UMBRAL`, el dato para recalibrarlo con preguntas reales.
+
+**Tokens.** `tokens_prompt` (instrucciones, fragmentos y pregunta) y `tokens_respuesta` son los que
+informa el servidor del LLM; «-» si no los informa. Con un modelo local no tienen costo por uso,
+pero sirven para estimar cuánto costaría la misma consulta en un servicio que cobra por token: tokens
+de cada tipo × su precio. Es una estimación: cada modelo cuenta los tokens con su propio
+tokenizador, así que otro modelo puede contar unos más o unos menos. Una pregunta que el umbral rechaza registra 0, porque no llama al LLM. Para sumarlos,
+guarda el log al arrancar la API (`uvicorn app.api:app --port 8000 2>&1 | tee api.log`) y después:
+
+```bash
+awk '/tokens_prompt=/ {n++; for (i=1; i<=NF; i++) if ($i ~ /^tokens_(prompt|respuesta)=[0-9]+$/) {split($i, c, "="); t[c[1]] += c[2]}}
+     END {print n " consultas · prompt: " t["tokens_prompt"]+0 " · respuesta: " t["tokens_respuesta"]+0}' api.log
+```
 
 ---
 

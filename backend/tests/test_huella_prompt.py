@@ -18,6 +18,7 @@ from llama_index.core.llms import ChatMessage
 from llama_index.core.schema import NodeWithScore, TextNode
 
 from app.rag import generar, guia, sugerir
+from app.rag.flujo import Tokens
 from app.rag.prompts import VERSION_PROMPT
 from app.rag.prompts_etapa import VERSION_PROMPT_ETAPA
 
@@ -48,7 +49,7 @@ def _huella(mensajes: list[list[ChatMessage]]) -> str:
 
 def test_prompt_de_preguntas(monkeypatch: pytest.MonkeyPatch) -> None:
     enviados: list[list[ChatMessage]] = []
-    monkeypatch.setattr(generar, "chat", lambda mensajes: enviados.append(mensajes) or "")
+    monkeypatch.setattr(generar, "chat", lambda mensajes: enviados.append(mensajes) or ("", Tokens()))
     for etapa in [None, *ETAPAS]:
         generar._generar("¿Qué es un plano del servicio?", etapa, NODOS)
 

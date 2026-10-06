@@ -41,6 +41,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ / "backend"))
 from app.rag import config, guia  # noqa: E402
+from app.rag.flujo import tokens  # noqa: E402
 from app.rag.modelos import llm  # noqa: E402
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA  # noqa: E402
 from app.rag.prompts_etapa import VERSION_PROMPT_ETAPA  # noqa: E402
@@ -112,15 +113,14 @@ def generar(esc: dict) -> dict:
     nodos, mejor = fragmentos(esc["etapa"])
     ms = mensajes(esc["etapa"], nodos, texto_proyecto(esc["contexto"], esc["datos_etapa"]))
     r = llm().chat(ms)
-    raw = r.raw if isinstance(r.raw, dict) else {}  # Ollama
-    uso = r.additional_kwargs  # servidores compatibles con OpenAI
+    uso = tokens(r)
     return {
         "id": esc["id"], "etapa": esc["etapa"], "descripcion": esc["descripcion"],
         "respuesta_llm": limpiar_citas((r.message.content or "").strip()),
         "fuentes_prompt": sorted(fuentes_prompt(nodos)),
         "mejor_puntaje": mejor,
-        "tokens_prompt": raw.get("prompt_eval_count", uso.get("prompt_tokens")),
-        "tokens_respuesta": raw.get("eval_count", uso.get("completion_tokens")),
+        "tokens_prompt": uso.prompt,
+        "tokens_respuesta": uso.respuesta,
         "latencia_s": round(time.time() - t0, 1),
     }
 

@@ -1,12 +1,14 @@
-"""Formato de las líneas del log (registro.py) y que no guardan el texto que escribe la persona."""
+"""Formato de las líneas del log (registro.py): tiempos, tokens y nada del texto que escribe la persona."""
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 
 import pytest
 from conftest import fragmento
 
 from app.rag import generar, registro, sugerir
+from app.rag.flujo import Tokens, tokens
 
 PREGUNTA = "¿Mi RUT 12.345.678-9 sirve para el trámite?"
 
@@ -20,14 +22,15 @@ def test_campos() -> None:
 def test_pregunta_con_tiempos_y_sin_su_texto(monkeypatch: pytest.MonkeyPatch,
                                              caplog: pytest.LogCaptureFixture) -> None:
     monkeypatch.setattr(generar, "recuperar", lambda *a, **k: [fragmento(0.93), fragmento(0.2)])
-    monkeypatch.setattr(generar, "_generar", lambda *a: "Respuesta [fuente].")
+    monkeypatch.setattr(generar, "_generar", lambda *a: ("Respuesta [fuente].", Tokens(1530, 210)))
 
     with caplog.at_level(logging.INFO, logger="app.rag.generar"):
         generar.responder(PREGUNTA, 7)
 
     linea = caplog.records[-1].getMessage()
     for campo in ("etapa=7", "filtrar_etapa=false", f"largo_pregunta={len(PREGUNTA)}", "mejor=0.93",
-                  "fragmentos=1", "t_recuperacion_s=", "t_llm_s=", "encontrada=true"):
+                  "fragmentos=1", "t_recuperacion_s=", "t_llm_s=", "tokens_prompt=1530", "tokens_respuesta=210",
+                  "encontrada=true"):
         assert campo in linea
     assert "RUT" not in caplog.text
 
@@ -40,25 +43,52 @@ def test_pregunta_bajo_el_umbral(monkeypatch: pytest.MonkeyPatch, caplog: pytest
 
     linea = caplog.records[-1].getMessage()
     assert "mejor=0.3 " in linea and "llm=no" in linea and "t_llm_s" not in linea
+    # Sin LLM no se gastan tokens: sumar la columna da el consumo real.
+    assert "tokens_prompt=0 tokens_respuesta=0" in linea
 
 
 def test_sugerir_sin_el_texto_del_proyecto(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     monkeypatch.setattr(sugerir, "recuperar", lambda *a, **k: [fragmento(0.95)])
-    monkeypatch.setattr(sugerir, "chat", lambda m: "Pasos.")
+    monkeypatch.setattr(sugerir, "chat", lambda m: ("Pasos.", Tokens(1900, 300)))
 
     with caplog.at_level(logging.INFO, logger="app.rag.sugerir"):
         sugerir.sugerir(4, "Licencias médicas de Juana Pérez")
 
     linea = caplog.records[-1].getMessage()
     assert "etapa=4" in linea and "largo_proyecto=" in linea and "t_llm_s=" in linea
+    assert "tokens_prompt=1900 tokens_respuesta=300" in linea
     assert "Juana" not in caplog.text
 
 
 def test_sugerir_sin_proyecto(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     monkeypatch.setattr(sugerir, "recuperar", lambda *a, **k: [fragmento(0.95)])
-    monkeypatch.setattr(sugerir, "chat", lambda m: "Pasos.")
+    monkeypatch.setattr(sugerir, "chat", lambda m: ("Pasos.", Tokens(1900, 300)))
 
     with caplog.at_level(logging.INFO, logger="app.rag.sugerir"):
         sugerir.sugerir(4)
 
     assert "largo_proyecto=0 " in caplog.records[-1].getMessage()
+
+
+def _respuesta(additional_kwargs: dict, raw: object) -> SimpleNamespace:
+    return SimpleNamespace(message=SimpleNamespace(content="Hola."), additional_kwargs=additional_kwargs, raw=raw)
+
+
+@pytest.mark.parametrize("respuesta, esperado", [
+    # Ollama: LlamaIndex copia prompt_eval_count y eval_count a raw["usage"].
+    (_respuesta({}, {"prompt_eval_count": 1530, "eval_count": 210,
+                     "usage": {"prompt_tokens": 1530, "completion_tokens": 210, "total_tokens": 1740}}),
+     Tokens(1530, 210)),
+    # Servidor compatible con OpenAI (LM Studio, vLLM): en additional_kwargs; raw es un objeto.
+    (_respuesta({"prompt_tokens": 1530, "completion_tokens": 210, "total_tokens": 1740}, object()),
+     Tokens(1530, 210)),
+    # Un servidor que no informa tokens no rompe la respuesta.
+    (_respuesta({}, {}), Tokens(None, None)),
+    (_respuesta({}, None), Tokens(None, None)),
+])
+def test_tokens_segun_el_servidor(respuesta: SimpleNamespace, esperado: Tokens) -> None:
+    assert tokens(respuesta) == esperado
+
+
+def test_tokens_desconocidos_en_el_log() -> None:
+    assert registro.campos(**Tokens().campos()) == "tokens_prompt=- tokens_respuesta=-"

@@ -15,6 +15,7 @@ from conftest import CAMPOS_CONTRATO, CAMPOS_FUENTE, fragmento
 
 from app.rag import config, flujo, generar, modelos
 from app.rag.contrato import Respuesta
+from app.rag.flujo import Tokens
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SISTEMA, SUGERENCIA, USUARIO, texto_etapa
 
 
@@ -57,7 +58,7 @@ def test_responde_con_fuentes_de_los_fragmentos_sobre_el_umbral(monkeypatch: pyt
     bajo = fragmento(0.3, herramienta=None, actividad=None, seccion="Glosario", pagina_inicio=150,
                      fuente="Glosario, p. 150")
     monkeypatch.setattr(generar, "recuperar", lambda *a, **k: [sobre, bajo])
-    monkeypatch.setattr(generar, "_generar", lambda pregunta, etapa, nodos: "Es un diagrama… (fuente)")
+    monkeypatch.setattr(generar, "_generar", lambda pregunta, etapa, nodos: ("Es un diagrama… (fuente)", Tokens()))
 
     r = generar.responder("¿Qué es un plano del servicio?")
 
@@ -75,7 +76,7 @@ def test_responde_con_fuentes_de_los_fragmentos_sobre_el_umbral(monkeypatch: pyt
 def test_seccion_de_la_fuente_cae_en_actividad_y_seccion(monkeypatch: pytest.MonkeyPatch) -> None:
     nodos = [fragmento(0.8, herramienta=None), fragmento(0.75, herramienta=None, actividad=None)]
     monkeypatch.setattr(generar, "recuperar", lambda *a, **k: nodos)
-    monkeypatch.setattr(generar, "_generar", lambda *a: "Respuesta.")
+    monkeypatch.setattr(generar, "_generar", lambda *a: ("Respuesta.", Tokens()))
 
     r = generar.responder("¿Qué son los momentos críticos?")
 
@@ -86,7 +87,7 @@ def test_seccion_de_la_fuente_cae_en_actividad_y_seccion(monkeypatch: pytest.Mon
 def test_rechazo_del_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     # Los fragmentos pasan el umbral, pero el LLM decide que no responden la pregunta.
     monkeypatch.setattr(generar, "recuperar", lambda *a, **k: [fragmento(0.8)])
-    monkeypatch.setattr(generar, "_generar", lambda *a: f"{MENSAJE_NO_ENCONTRADA} La guía no trata eso.")
+    monkeypatch.setattr(generar, "_generar", lambda *a: (f"{MENSAJE_NO_ENCONTRADA} La guía no trata eso.", Tokens()))
 
     r = generar.responder("¿Cuál es el sueldo de un diseñador?")
 
@@ -108,7 +109,7 @@ def test_etapa_solo_filtra_si_se_pide(monkeypatch: pytest.MonkeyPatch, filtrar: 
 
     def llm(pregunta, etapa, nodos):
         llamadas["etapa_llm"] = etapa
-        return "Respuesta."
+        return "Respuesta.", Tokens()
 
     monkeypatch.setattr(generar, "recuperar", recuperar)
     monkeypatch.setattr(generar, "_generar", llm)
@@ -122,7 +123,7 @@ def test_etapa_solo_filtra_si_se_pide(monkeypatch: pytest.MonkeyPatch, filtrar: 
 
 def test_respuesta_tiene_los_campos_del_contrato(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(generar, "recuperar", lambda *a, **k: [fragmento(0.8)])
-    monkeypatch.setattr(generar, "_generar", lambda *a: "Respuesta.")
+    monkeypatch.setattr(generar, "_generar", lambda *a: ("Respuesta.", Tokens()))
 
     r = generar.responder("¿Qué es?").a_dict()
     assert set(r) == CAMPOS_CONTRATO
@@ -146,7 +147,8 @@ class _LLMFalso:
 
     def chat(self, mensajes: list) -> SimpleNamespace:
         self.mensajes = mensajes
-        return SimpleNamespace(message=SimpleNamespace(content=" Respuesta. "))
+        return SimpleNamespace(message=SimpleNamespace(content=" Respuesta. "), additional_kwargs={},
+                               raw={"usage": {"prompt_tokens": 812, "completion_tokens": 95}})
 
 
 @pytest.mark.parametrize("etapa", [7, None])
@@ -156,7 +158,7 @@ def test_mensajes_que_recibe_el_llm(monkeypatch: pytest.MonkeyPatch, etapa: int 
     monkeypatch.setattr(flujo, "llm", lambda: falso)
     nodos = [fragmento(0.8)]
 
-    assert generar._generar("¿Cómo hago el mapa?", etapa, nodos) == "Respuesta."
+    assert generar._generar("¿Cómo hago el mapa?", etapa, nodos) == ("Respuesta.", Tokens(812, 95))
 
     sistema, usuario = falso.mensajes
     assert sistema.content == SISTEMA

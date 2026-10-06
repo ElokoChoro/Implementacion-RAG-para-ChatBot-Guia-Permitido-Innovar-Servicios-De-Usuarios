@@ -16,7 +16,8 @@ a la guía. Es lo que devuelve `POST /ia/sugerir-proximos-pasos` (api.py).
 
 La respuesta tiene la forma de `Respuesta` (contrato.py); las fuentes y la
 confianza salen de los fragmentos y del reranker, no del texto del LLM. Cada
-respuesta deja en el log cuánto tardaron la recuperación y el LLM (registro.py).
+respuesta deja en el log cuánto tardaron la recuperación y el LLM, y cuántos tokens
+usó el LLM (registro.py).
 
 Prueba rápida, desde backend/ (el servidor del LLM corriendo con el modelo de config.LLM):
     python -m app.rag.sugerir 1
@@ -38,7 +39,7 @@ from llama_index.core.schema import NodeWithScore
 
 from app.rag import config, guia, registro
 from app.rag.contrato import Respuesta
-from app.rag.flujo import armar_respuesta, chat, contexto as contexto_guia, sobre_el_umbral
+from app.rag.flujo import SIN_LLM, armar_respuesta, chat, contexto as contexto_guia, sobre_el_umbral
 from app.rag.prompts_etapa import (
     PROYECTO_VACIO,
     SIN_FRAGMENTOS,
@@ -179,14 +180,16 @@ def sugerir(etapa: int, contexto: str | dict | None = None,
     tiempos = {"etapa": etapa, "largo_proyecto": len(proyecto) if proyecto != PROYECTO_VACIO else 0,
                "mejor": mejor, "fragmentos": len(nodos), "t_recuperacion_s": round(time.time() - t0, 1)}
     if not nodos:
-        log.info(registro.campos(**tiempos, llm="no", encontrada=False))
+        log.info(registro.campos(**tiempos, llm="no", **SIN_LLM.campos(), encontrada=False))
         return armar_respuesta(SIN_FRAGMENTOS, nodos, mejor, t0, version_prompt=VERSION_PROMPT_ETAPA)
 
     t1 = time.time()
-    texto = limpiar_citas(chat(mensajes(etapa, nodos, proyecto)))
+    texto, uso = chat(mensajes(etapa, nodos, proyecto))
+    texto = limpiar_citas(texto)
     r = armar_respuesta(ajustar_citas(texto, fuentes_prompt(nodos)), nodos, mejor, t0,
                         version_prompt=VERSION_PROMPT_ETAPA)
-    log.info(registro.campos(**tiempos, t_llm_s=round(time.time() - t1, 1), encontrada=r.encontrada))
+    log.info(registro.campos(**tiempos, t_llm_s=round(time.time() - t1, 1), **uso.campos(),
+                             encontrada=r.encontrada))
     return r
 
 

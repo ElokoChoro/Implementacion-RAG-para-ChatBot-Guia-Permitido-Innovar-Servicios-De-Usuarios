@@ -3,7 +3,8 @@ Registro (logging) del backend: una línea «clave=valor» por evento.
 
     app.api            una por solicitud: ruta, estado, espera de turno, latencia y resultado,
                        o el motivo del 503
-    app.rag.generar    tiempos de una pregunta: recuperación y LLM, fragmentos y mejor puntaje
+    app.rag.generar    tiempos de una pregunta (recuperación y LLM), fragmentos, mejor puntaje
+                       y tokens del LLM (tokens_prompt, tokens_respuesta)
     app.rag.sugerir    lo mismo para los próximos pasos de una etapa
 
 No se registra el texto de la pregunta ni lo que el equipo escribió de su proyecto:
@@ -13,6 +14,11 @@ largo, que alcanza para ver si las preguntas muy cortas se rechazan más.
 Sirve para operar la API (cuántas consultas esperan turno o reciben 503, cuánto
 tarda el LLM frente a la recuperación) y para revisar el UMBRAL con preguntas
 reales: `mejor` es el puntaje del reranker de cada una, también de las rechazadas.
+
+Los tokens son los que informa el servidor del LLM (flujo.tokens). Con un modelo
+local no tienen costo por uso, pero miden cuánto trabaja el LLM; con un servicio
+que cobra por token, su suma da el costo. Una consulta que el umbral rechaza
+registra 0, porque no llama al LLM; «-» quiere decir que el servidor no los informó.
 
 Con uvicorn, las líneas salen junto a su log. Desde la terminal, desde backend/:
     python -m app.rag.generar "¿Qué es un plano del servicio?"   # la línea de tiempos sale primero

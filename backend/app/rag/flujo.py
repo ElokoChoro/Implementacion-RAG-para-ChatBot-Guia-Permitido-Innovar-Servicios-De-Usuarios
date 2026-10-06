@@ -6,7 +6,9 @@ sugerir.py (próximos pasos de una etapa).
                     devuelve también el mejor puntaje, para informarlo aunque
                     ninguno pase
   contexto          los fragmentos como los lee el LLM: cada uno con su línea «fuente:»
-  chat              llama al LLM; si el servidor falla, RuntimeError con qué hacer
+  chat              llama al LLM y devuelve el texto y los tokens que usó; si el
+                    servidor falla, RuntimeError con qué hacer
+  tokens            tokens de una respuesta del LLM, como los informa su servidor
   armar_respuesta   la `Respuesta` del contrato: rechazo, confianza y fuentes
 
 Lo que cambia entre los dos (los mensajes, el texto cuando ningún fragmento
@@ -22,10 +24,11 @@ cambia esa frase o la regla del caso C de prompts.py, revisa armar_respuesta.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 
 import httpx
 import openai
-from llama_index.core.llms import ChatMessage
+from llama_index.core.llms import ChatMessage, ChatResponse
 from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.schema import MetadataMode, NodeWithScore, QueryBundle
 from ollama import ResponseError
@@ -75,14 +78,43 @@ def contexto(nodos: list[NodeWithScore]) -> str:
     return "\n\n---\n\n".join(n.node.get_content(metadata_mode=MetadataMode.LLM) for n in nodos)
 
 
-def chat(mensajes: list[ChatMessage]) -> str:
-    """
-    Respuesta del LLM a `mensajes`. RuntimeError con qué hacer si el servidor del LLM falla.
+@dataclass(frozen=True)
+class Tokens:
+    """Tokens de una llamada al LLM. None si el servidor no los informa."""
 
-    El cliente se crea en modelos.llm(); un proveedor nuevo agrega aquí sus errores.
+    prompt: int | None = None     # instrucciones, fragmentos y pregunta
+    respuesta: int | None = None  # texto generado
+
+    def campos(self) -> dict:
+        """Para la línea del log (registro.py)."""
+        return {"tokens_prompt": self.prompt, "tokens_respuesta": self.respuesta}
+
+
+SIN_LLM = Tokens(prompt=0, respuesta=0)  # el umbral rechazó la consulta: no se llamó al LLM
+
+
+def tokens(r: ChatResponse) -> Tokens:
+    """
+    Tokens que informa el servidor del LLM en su respuesta.
+
+    LlamaIndex los deja en `additional_kwargs` con un servidor compatible con
+    OpenAI y en `raw["usage"]` con Ollama (que los entrega como prompt_eval_count
+    y eval_count). Un servidor que no los informa deja los dos en None.
+    """
+    uso = r.additional_kwargs or (r.raw.get("usage") if isinstance(r.raw, dict) else None) or {}
+    return Tokens(prompt=uso.get("prompt_tokens"), respuesta=uso.get("completion_tokens"))
+
+
+def chat(mensajes: list[ChatMessage]) -> tuple[str, Tokens]:
+    """
+    Texto del LLM para `mensajes` y los tokens que usó. RuntimeError con qué hacer si el servidor falla.
+
+    El cliente se crea en modelos.llm(); un proveedor nuevo agrega aquí sus errores
+    y, si informa los tokens en otro lugar, los lee en tokens().
     """
     try:
-        return (llm().chat(mensajes).message.content or "").strip()
+        r = llm().chat(mensajes)
+        return (r.message.content or "").strip(), tokens(r)
     # APITimeoutError hereda de APIConnectionError: va antes.
     except (httpx.TimeoutException, openai.APITimeoutError) as e:
         raise RuntimeError(f"El modelo no respondió en {config.TIMEOUT_S:.0f} s. "
