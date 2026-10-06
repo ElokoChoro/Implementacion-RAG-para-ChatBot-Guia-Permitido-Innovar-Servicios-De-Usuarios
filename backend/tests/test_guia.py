@@ -1,7 +1,7 @@
 """
 Etapas de la plataforma (`guia.py`) y el contexto que recibe el LLM en cada una (`prompts.py`).
 
-Los datos de cada etapa se contrastan con el corpus versionado (data/corpus/v2):
+Los datos de cada etapa se contrastan con el corpus versionado (data/corpus/v3):
 las páginas y el objetivo tienen que poder verificarse en la guía, y las etapas
 no pueden cambiar sin cambiar el corpus.
 """
@@ -18,7 +18,7 @@ from app.rag import config, guia, prompts
 ETAPAS_P1 = [e.numero for e in guia.PROPOSITOS[1].etapas]
 # Corpus con que se etiquetaron las ETAPAS: fijo, para no depender de VERSION_CORPUS del .env.
 # Si se crea un corpus nuevo junto con un cambio en guia.py, se actualiza aquí en el mismo cambio.
-RUTA_CORPUS = config.RAIZ / "data" / "corpus" / "v2" / "paginas.jsonl"
+RUTA_CORPUS = config.RAIZ / "data" / "corpus" / "v3" / "paginas.jsonl"
 
 
 def _corpus() -> dict[int, dict]:
@@ -31,7 +31,7 @@ def _normalizar(texto: str) -> str:
 
 
 def test_etapas_del_corpus_sin_cambios() -> None:
-    # Con estos valores se etiquetó data/corpus/v2: cambiarlos exige una versión nueva del corpus.
+    # Con estos valores se etiquetaron data/corpus/v2 y v3: cambiarlos exige una versión nueva del corpus.
     assert guia.ETAPAS == {
         1: "Investigación", 2: "Personas", 3: "Habilitación y Expectativas",
         4: "Necesidades", 5: "Vinculación", 6: "Medición", 7: "Momentos críticos",

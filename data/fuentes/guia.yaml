@@ -18,4 +18,4 @@ extraccion:
   pipeline: standard
   ocr: false
   fecha: 2026-10-01
-  corpus: v2
+  corpus: v3  # v2 es la misma extracción sin la limpieza de ingesta/limpieza.py

@@ -1,6 +1,6 @@
 {
-  "fecha": "2026-10-01",
-  "coleccion": "guia_v2_bge-m3_c400o50",
+  "fecha": "2026-10-06",
+  "coleccion": "guia_v3_bge-m3_c400o50",
   "candidatos": 20,
   "top_k": 4,
   "resumen": {
@@ -10,25 +10,23 @@
     "distintas": []
   },
   "chroma": {
-    "s_por_pregunta": 0.23,
-    "recall@4": 94.2,
-    "recall_pagina@4": 88.5,
-    "mrr@4": 0.885,
+    "s_por_pregunta": 0.22,
+    "recall@4": 96.2,
+    "recall_pagina@4": 90.4,
+    "mrr@4": 0.904,
     "fallos": [
       "P-009",
-      "P-050",
       "P-053"
     ],
     "recall@20": 100.0
   },
   "pgvector": {
-    "s_por_pregunta": 0.94,
-    "recall@4": 94.2,
-    "recall_pagina@4": 88.5,
-    "mrr@4": 0.885,
+    "s_por_pregunta": 0.89,
+    "recall@4": 96.2,
+    "recall_pagina@4": 90.4,
+    "mrr@4": 0.904,
     "fallos": [
       "P-009",
-      "P-050",
       "P-053"
     ],
     "recall@20": 100.0

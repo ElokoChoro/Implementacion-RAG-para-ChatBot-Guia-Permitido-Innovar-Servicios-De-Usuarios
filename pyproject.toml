@@ -22,6 +22,6 @@ select = ["E", "F", "W", "I", "B", "UP"]
 combine-as-imports = true
 
 [tool.pytest.ini_options]
-# Los tests importan `app` igual que cuando se corre desde backend/.
-pythonpath = ["backend"]
+# Los tests importan `app` igual que cuando se corre desde backend/, e `ingesta` desde la raíz.
+pythonpath = ["backend", "."]
 testpaths = ["backend/tests"]
