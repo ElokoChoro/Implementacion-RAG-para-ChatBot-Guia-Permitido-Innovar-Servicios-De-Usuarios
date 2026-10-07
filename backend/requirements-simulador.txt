@@ -3,5 +3,7 @@
 # Las versiones son las mismas de requirements.txt.
 fastapi>=0.142,<0.143
 uvicorn>=0.54,<0.55
+# El simulador también recibe adjuntos (POST /ia/adjuntos)
+python-multipart>=0.0.20,<0.1
 # Lee la configuración del .env de la raíz
 python-dotenv>=1.2,<2

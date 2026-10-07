@@ -8,6 +8,20 @@ export type Fuente = {
   puntaje: number
 }
 
+// Respuesta de POST /ia/adjuntos (backend/app/adjuntos/tipos.py › AdjuntoCargado)
+export type AdjuntoCargado = {
+  adjunto_id: string
+  nombre: string
+  formato: string
+  paginas: number | null
+  fragmentos: number
+  caracteres: number
+  reemplazos: Record<string, number>
+  expira_en_s: number
+  modo: string
+  latencia_s: number
+}
+
 export type Message = {
   id: string
   role: Role

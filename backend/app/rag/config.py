@@ -55,6 +55,13 @@ COLA_MAXIMA            Consultas que pueden esperar turno mientras se atiende un
 ESPERA_TURNO_S         Segundos que una consulta espera turno antes de responder 503.
 PRECARGAR              Si es true, la API carga bge-m3, el reranker y el índice al arrancar, en
                        segundo plano, en vez de con la primera consulta.
+FORMATOS_ADJUNTO       Formatos de adjunto que acepta POST /ia/adjuntos, separados por coma
+                       («pdf,docx»). El código también lee «md».
+MAX_MB_ADJUNTO         Tamaño máximo de un adjunto, en MB.
+MAX_PAGINAS_ADJUNTO    Páginas máximas de un PDF adjunto.
+MIN_CARACTERES_PAGINA  Caracteres por página, en promedio, bajo los que un PDF se trata como escaneado.
+MINUTOS_ADJUNTO        Minutos que un adjunto queda en memoria desde que se subió.
+MAX_ADJUNTOS           Adjuntos en memoria a la vez; al subir uno más se descarta el más antiguo.
 
 Si cambian EMBEDDINGS, CHUNK_TOKENS, CHUNK_OVERLAP o VERSION_CORPUS, hay que
 volver a indexar (python -m ingesta.indexar). En Chroma cada combinación usa su
@@ -75,6 +82,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from app.adjuntos.tipos import FORMATOS  # los que sabe leer app/adjuntos/extraer.py
 from app.rag import secretos
 
 RAIZ = Path(__file__).resolve().parents[3]  # raíz del repositorio
@@ -225,6 +233,29 @@ ESPERA_TURNO_S = _env("ESPERA_TURNO_S", 300.0, float)
 # Apagado por defecto: en uso local, uvicorn arranca al instante y los modelos se cargan
 # solo si alguien pregunta. En un servidor que atiende a la plataforma, conviene prenderlo.
 PRECARGAR = _env("PRECARGAR", False, bool)
+
+# ---- Adjuntos -------------------------------------------------------------------
+# La persona sube un PDF, DOCX o MD (app/adjuntos/). Se lee, se seudonimiza y se indexa en
+# memoria, separado de la guía; no se guarda en disco ni en Supabase.
+# PDF y DOCX es lo acordado con UXLab para el MVP; «md» se puede sumar sin tocar el código.
+FORMATOS_ADJUNTO = tuple(f.strip().lower().lstrip(".")
+                         for f in _env("FORMATOS_ADJUNTO", "pdf,docx").split(",") if f.strip())
+if not FORMATOS_ADJUNTO or set(FORMATOS_ADJUNTO) - set(FORMATOS):
+    raise ValueError(f"FORMATOS_ADJUNTO={','.join(FORMATOS_ADJUNTO)!r} no es válido. "
+                     f"Usa uno o más de: {', '.join(FORMATOS)}.")
+# Provisionales: un entregable de texto pesa bastante menos. Se revisan con la medición del README
+# («Adjuntos»). Las páginas pesan más que los MB: Docling tardó ~2 min con las 170 páginas de la
+# guía en un Mac M2 de 8 GB, así que 40 páginas son del orden de medio minuto.
+MAX_MB_ADJUNTO = _env("MAX_MB_ADJUNTO", 10.0, float)
+MAX_PAGINAS_ADJUNTO = _env("MAX_PAGINAS_ADJUNTO", 40, int)
+# Sin OCR, un PDF escaneado sale casi vacío: menos de 30 caracteres por página en promedio
+# (números de página, algún pie) no alcanza para leerlo. Una página de texto trae más de 1000.
+MIN_CARACTERES_PAGINA = _env("MIN_CARACTERES_PAGINA", 30, int)
+# Lo que dura una conversación de prueba. Vencido, la persona lo vuelve a subir.
+MINUTOS_ADJUNTO = _env("MINUTOS_ADJUNTO", 60.0, float)
+# Cada adjunto ocupa poco (unas decenas de fragmentos con vectores de 1024 floats), pero guarda
+# datos de personas: se tienen los mínimos en memoria.
+MAX_ADJUNTOS = _env("MAX_ADJUNTOS", 5, int)
 
 
 def coleccion() -> str:

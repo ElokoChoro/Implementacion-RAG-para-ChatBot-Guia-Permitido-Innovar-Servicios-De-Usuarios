@@ -17,3 +17,7 @@ llama-index-llms-openai-like>=0.8,<0.9
 # API HTTP para la interfaz de chat (app/api.py)
 fastapi>=0.142,<0.143
 uvicorn>=0.54,<0.55
+# Archivos multipart en la API (POST /ia/adjuntos): FastAPI lo necesita para UploadFile
+python-multipart>=0.0.20,<0.1
+# Lee los adjuntos (PDF, DOCX y MD, app/adjuntos/extraer.py) y, en la ingesta, el PDF de la guía
+docling>=2.131,<3
