@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import CAMPOS_CONTRATO
+from conftest import CAMPOS_CONTRATO, CAMPOS_FUENTE
 from fastapi.testclient import TestClient
 
 from app import api
@@ -41,6 +41,7 @@ def test_respuesta_por_defecto() -> None:
     r = simulador.responder("¿Qué es un plano del servicio?")
 
     assert set(r.a_dict()) == CAMPOS_CONTRATO
+    assert r.fuentes and all(set(f) == CAMPOS_FUENTE for f in r.fuentes)
     assert r.encontrada is True
     assert r.confianza == "alta"
     assert r.modo == r.modelo == "simulador"

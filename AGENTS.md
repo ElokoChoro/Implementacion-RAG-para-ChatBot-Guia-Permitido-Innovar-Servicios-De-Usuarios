@@ -12,8 +12,8 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 
 | Carpeta | Contenido |
 | --- | --- |
-| `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador` |
-| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y `GET /salud`; atiende las solicitudes de a una. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
+| `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Umbral, llamada al LLM y armado de la respuesta, comunes a los dos: `flujo`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador`; log por consulta: `registro` |
+| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y `GET /salud`; atiende las solicitudes de a una, con tope de cola (`COLA_MAXIMA`, `ESPERA_TURNO_S`) y 503 si no hay turno. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`, que limpia el texto con `limpieza`) → índice vectorial (`indexar`) |
 | `data/corpus/v3/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v2` es el anterior, sin limpieza |
@@ -33,8 +33,8 @@ Python 3.12 con el entorno en `.venv/`. **Ojo con el directorio**: la consulta s
 `backend/`; la ingesta y la evaluación, desde la raíz.
 
 ```bash
-python3.12 -m venv .venv && .venv/bin/pip install -r ingesta/requirements.txt   # ingesta + consulta
-.venv/bin/pip install -r requirements-dev.txt               # pytest y ruff
+python3.12 -m venv .venv          # ingesta, consulta, pytest y ruff, con las versiones del lock:
+.venv/bin/pip install -r ingesta/requirements.txt -r requirements-dev.txt -c requirements.lock
 .venv/bin/python -m pytest                                 # tests, en segundos (config en pyproject.toml)
 .venv/bin/ruff check                                       # lint de Python
 .venv/bin/python -m ingesta.indexar                        # reconstruye el índice (Chroma)
@@ -69,8 +69,8 @@ no dependa de los modelos (un corte, un campo, una validación) lleva su test en
 Requisitos de los modelos: la primera ejecución descarga bge-m3 y el reranker desde Hugging Face
 (~2,3 GB cada uno). La generación necesita Ollama corriendo con `ollama pull gemma3:4b` o, con
 `PROVEEDOR_LLM=openai`, otro servidor compatible con la API de OpenAI, en el mismo equipo o en otro
-(README, «LLM en cada equipo»). Todo cliente del LLM se crea en `llm()` y sus errores se traducen
-en `generar._generar()`: un proveedor nuevo va en esos dos lugares. El equipo
+(README, «LLM en cada equipo»). Todo cliente del LLM se crea en `llm()`, sus errores se traducen
+en `flujo.chat()` y sus tokens se leen en `flujo.tokens()`: un proveedor nuevo va en esos lugares. El equipo
 de referencia es un Mac M2 de 8 GB: no cargues más modelos de los necesarios en un mismo proceso y
 usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean una sola instancia.
 
@@ -82,7 +82,8 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   `secretos.py`), y `.env.example` explica cómo guardarla.
 - **Cambiar `EMBEDDINGS`, `CHUNK_TOKENS`, `CHUNK_OVERLAP` o `VERSION_CORPUS`** → volver a indexar.
   En Chroma cada combinación tiene su colección (`config.coleccion()`); en pgvector hay una sola
-  tabla que se recarga completa.
+  tabla que se recarga completa. `indice()` abre el índice una vez por proceso: si indexas con la
+  API corriendo, reiníciala.
 - **Cambiar el modelo de embeddings** (y con él `EMBEDDINGS_DIM`) → migración nueva en
   `supabase/migrations/` con la dimensión del modelo.
 - **Cambiar `RERANKER`** → recalibrar `UMBRAL`, `CONFIANZA_MEDIA` y `CONFIANZA_ALTA` con
@@ -91,14 +92,17 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   de cada etapa, nombre del propósito y nombres de `HERRAMIENTAS`): todo cambio sube `VERSION_PROMPT` y se anota en la lista de versiones
   del docstring. Lo mismo con el prompt del asistente por etapa (`prompts_etapa.py`,
   `VERSION_PROMPT_ETAPA`), que también recibe esos datos de `guia.py` y se prueba con
-  `eval/probar_asistente_etapa.py`. `generar.py` detecta el rechazo del LLM buscando `MENSAJE_NO_ENCONTRADA` al
-  **inicio** de la respuesta: si cambias esa frase o la regla del caso C, revisa los dos archivos.
+  `eval/probar_asistente_etapa.py`. `test_huella_prompt.py` falla si cambian los mensajes al LLM sin
+  subir la versión: al subirla, agrega la huella nueva. `flujo.armar_respuesta()` detecta el rechazo
+  del LLM buscando `MENSAJE_NO_ENCONTRADA` al **inicio** de la respuesta: si cambias esa frase o la
+  regla del caso C, revisa `prompts.py` y `flujo.py`.
 - **Confianza y fuentes** salen del puntaje del reranker y de los metadatos de los fragmentos, nunca
   del texto del LLM. `Respuesta` en `contrato.py` tiene la forma del contrato `POST /ia/consultar-guia`:
-  no cambies sus campos sin acordarlo. Los tests comparan sus campos con `CAMPOS_CONTRATO`
-  (`backend/tests/conftest.py`), copia de `RespuestaGuia` de `src/lib/rag.ts`; si el cambio se
-  acuerda, actualiza los tres, y también las respuestas de `simulador.py`.
-- **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `prompts.py`, `prompts_etapa.py` y `guia.py`
+  no cambies sus campos sin acordarlo. Los tests comparan sus campos con `CAMPOS_CONTRATO` y los
+  de cada fuente (`Fuente`) con `CAMPOS_FUENTE` (`backend/tests/conftest.py`), copias de
+  `RespuestaGuia` de `src/lib/rag.ts` y `Fuente` de `src/types.ts`; si el cambio se acuerda,
+  actualiza los tres lugares, y también las respuestas de `simulador.py`.
+- **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `registro.py`, `prompts.py`, `prompts_etapa.py` y `guia.py`
   no importan LlamaIndex, FlagEmbedding ni clientes de LLM (o lo hacen dentro de una función), para
   que `MODO=simulador` corra con `backend/requirements-simulador.txt`. `test_simulador.py` lo revisa.
 - **Corpus**: `data/corpus/v3/paginas.jsonl` no se edita a mano, ni su texto en Supabase; se
@@ -110,6 +114,10 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   `HERRAMIENTAS`) y la etapa → actividad del Propósito 1 están en `backend/app/rag/guia.py`, que
   comparten la ingesta y el prompt: cambiarlas cambia el corpus. Los créditos (p. 2) se indexan como `FICHA_CREDITOS`
   (`ingesta/corpus.py`); si cambia la guía, revísala contra la página. Formato en [data/corpus/README.md](data/corpus/README.md).
+- **Dependencias de Python**: un cambio en los `requirements*.txt` va con `requirements.lock`
+  regenerado (comando en el README, «Tests y CI»). El lock fija las versiones con que se midió
+  `eval/`; si sube llama-index, FlagEmbedding, transformers, torch o Docling, corre la evaluación
+  que corresponda.
 - **Evaluación**: los resultados de `eval/resultados/*.json` se versionan. Si vuelves a correr un
   script, actualiza la tabla correspondiente de `eval/README.md` con la fecha.
 - **Migraciones**: nunca edites una migración ya aplicada; agrega una nueva con fecha en el nombre.

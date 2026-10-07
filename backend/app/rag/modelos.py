@@ -108,22 +108,31 @@ class ReordenadorBGE(BaseNodePostprocessor):
     def class_name(cls) -> str:
         return "ReordenadorBGE"
 
-    def _postprocess_nodes(self, nodes: list[NodeWithScore],
-                           query_bundle: QueryBundle | None = None) -> list[NodeWithScore]:
-        if query_bundle is None:
-            raise ValueError("El reranker necesita la pregunta (query_bundle).")
-        if not nodes:
+    def reordenar(self, nodos: list[NodeWithScore], pregunta: str, top_n: int) -> list[NodeWithScore]:
+        """
+        Los `top_n` fragmentos más relevantes para `pregunta`, con el puntaje del reranker.
+
+        Recibe `top_n` en cada llamada en vez de leer `self.top_n`: la instancia es
+        compartida (reordenador()) y cambiarle el atributo afectaría a otra consulta.
+        """
+        if not nodos:
             return []
         # Cada fragmento se puntúa con el mismo texto que se vectorizó, que
         # incluye su «fuente» (sección › herramienta, p. N).
-        pares = [(query_bundle.query_str, n.node.get_content(metadata_mode=MetadataMode.EMBED))
-                 for n in nodes]
+        pares = [(pregunta, n.node.get_content(metadata_mode=MetadataMode.EMBED)) for n in nodos]
         puntajes = self._modelo.compute_score(pares, normalize=True)
         if isinstance(puntajes, float):  # con un solo par, FlagReranker devuelve un número
             puntajes = [puntajes]
-        for n, puntaje in zip(nodes, puntajes, strict=True):
+        for n, puntaje in zip(nodos, puntajes, strict=True):
             n.score = float(puntaje)
-        return sorted(nodes, key=lambda n: n.score, reverse=True)[: self.top_n]
+        return sorted(nodos, key=lambda n: n.score, reverse=True)[:top_n]
+
+    def _postprocess_nodes(self, nodes: list[NodeWithScore],
+                           query_bundle: QueryBundle | None = None) -> list[NodeWithScore]:
+        # Para usarlo como postprocesador de LlamaIndex, con self.top_n.
+        if query_bundle is None:
+            raise ValueError("El reranker necesita la pregunta (query_bundle).")
+        return self.reordenar(nodes, query_bundle.query_str, self.top_n)
 
 
 @lru_cache(maxsize=1)

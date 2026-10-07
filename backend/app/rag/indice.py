@@ -9,6 +9,8 @@ store que indica config.ALMACEN:
             migración de supabase/migrations/
 
 El índice se carga con `python -m ingesta.indexar`; este módulo solo lo abre.
+`indice()` lo abre y lo revisa una vez por proceso y por configuración: si
+vuelves a indexar con la API corriendo, reiníciala para que lea el índice nuevo.
 """
 from __future__ import annotations
 
@@ -120,7 +122,7 @@ def contar(vs: BasePydanticVectorStore) -> int:
 
         with _motor().connect() as con:
             return con.execute(sqlalchemy.text(f'select count(*) from public."{tabla_pgvector()}"')).scalar()
-    return vs._collection.count()
+    return vs.client.count()  # en ChromaVectorStore, `client` es la colección
 
 
 def _configuracion_indexada() -> str | None:
@@ -139,7 +141,17 @@ def indice() -> VectorStoreIndex:
 
     Lanza RuntimeError si está vacío (todavía no se indexó) o si la tabla de
     pgvector se cargó con otro corpus, modelo o fragmentación.
+
+    Se abre y se revisa una vez por almacén y configuración, no en cada consulta:
+    revisarlo cuesta dos consultas a Supabase. La clave incluye ALMACEN porque
+    eval/comparar_almacenes.py lo cambia dentro del mismo proceso.
     """
+    return _indice(config.ALMACEN, config.coleccion(), str(config.RUTA_CHROMA))
+
+
+@lru_cache(maxsize=2)
+def _indice(_almacen: str, _coleccion: str, _ruta_chroma: str) -> VectorStoreIndex:
+    # Los argumentos solo forman la clave de la caché: la configuración se lee de config.
     vs = vector_store()
     if contar(vs) == 0:
         raise RuntimeError(f"El índice ({descripcion()}) está vacío. "

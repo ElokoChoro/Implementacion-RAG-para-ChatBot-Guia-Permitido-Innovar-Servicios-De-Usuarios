@@ -10,6 +10,9 @@ Recuperación de fragmentos de la guía para una pregunta, en dos pasos:
 Opcionalmente se filtra por etapa (1 a 7), para buscar solo en la actividad de
 la guía que corresponde a esa etapa de la plataforma.
 
+Si el índice está en Supabase y no hay conexión, lanza RuntimeError con qué
+revisar: la API lo responde como 503, igual que cuando el LLM no está disponible.
+
 Prueba rápida, desde backend/:
     python -m app.rag.recuperar "¿Qué es un mapa de momentos críticos?" --etapa 7
     python -m app.rag.recuperar "¿Qué es un mapa de momentos críticos?" --sin-reranker
@@ -19,8 +22,9 @@ from __future__ import annotations
 import argparse
 import time
 
-from llama_index.core.schema import NodeWithScore, QueryBundle
+from llama_index.core.schema import NodeWithScore
 from llama_index.core.vector_stores import FilterOperator, MetadataFilter, MetadataFilters
+from sqlalchemy.exc import OperationalError
 
 from app.rag import config
 from app.rag.indice import descripcion, indice
@@ -45,14 +49,23 @@ def recuperar(pregunta: str, etapa: int | None = None, top_k: int = config.TOP_K
     puntaje en `score`: del reranker (0 a 1) o, sin reranker, la similitud coseno.
     """
     candidatos = config.RERANKER_CANDIDATOS if usar_reranker else top_k
-    retriever = indice().as_retriever(similarity_top_k=max(candidatos, top_k),
-                                      filters=_filtros(etapa))
-    nodos = retriever.retrieve(pregunta)
+    try:
+        retriever = indice().as_retriever(similarity_top_k=max(candidatos, top_k),
+                                          filters=_filtros(etapa))
+        nodos = retriever.retrieve(pregunta)
+    except OperationalError as e:  # solo con pgvector: Supabase no responde o rechaza la conexión
+        raise RuntimeError("No se pudo conectar con el índice en Supabase. Revisa que el proyecto esté "
+                           "activo (los gratuitos se pausan tras una semana sin uso) y que "
+                           "SUPABASE_DB_URL sea la vigente.") from e
     if not usar_reranker:
         return nodos
-    reranker = reordenador()
-    reranker.top_n = top_k
-    return reranker.postprocess_nodes(nodos, query_bundle=QueryBundle(pregunta))
+    return reordenador().reordenar(nodos, pregunta, top_k)
+
+
+def precargar() -> None:
+    """Carga bge-m3, el reranker y el índice, para que la primera consulta no los espere."""
+    indice()  # carga bge-m3 y revisa que el índice exista y calce con la configuración
+    reordenador()
 
 
 def main():

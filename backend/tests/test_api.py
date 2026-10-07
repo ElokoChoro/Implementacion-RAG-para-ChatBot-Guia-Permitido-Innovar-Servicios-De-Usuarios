@@ -1,11 +1,16 @@
-"""Validación, clave de servicio y códigos de error de la API HTTP, con `responder()` y `sugerir()` reemplazados."""
+"""Validación, clave, turno y códigos de error de la API HTTP, con `responder()` y `sugerir()` reemplazados."""
 from __future__ import annotations
 
+import inspect
+import logging
+import threading
+
 import pytest
-from conftest import CAMPOS_CONTRATO
+from conftest import CAMPOS_CONTRATO, CAMPOS_FUENTE
 from fastapi.testclient import TestClient
 
 from app import api
+from app.rag import config
 from app.rag.contrato import Respuesta
 
 cliente = TestClient(api.app)
@@ -15,6 +20,14 @@ cliente = TestClient(api.app)
 def sin_clave(monkeypatch: pytest.MonkeyPatch) -> None:
     """Sin CLAVE_SERVICIO, como en uso local: el llavero de quien corre los tests no debe cambiarlo."""
     monkeypatch.setattr(api, "_clave_servicio", lambda: "")
+
+
+@pytest.fixture(autouse=True)
+def turno_libre(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Turno, cupos y estado nuevos en cada test, para que uno que los deje tomados no afecte a otro."""
+    monkeypatch.setattr(api, "_turno", threading.Lock())
+    monkeypatch.setattr(api, "_cupos", threading.BoundedSemaphore(1 + config.COLA_MAXIMA))
+    monkeypatch.setattr(api, "_listo", threading.Event())
 
 
 @pytest.fixture
@@ -83,8 +96,131 @@ def test_salud() -> None:
     r = cliente.get("/salud")
 
     assert r.status_code == 200
-    assert set(r.json()) == {"modo", "almacen", "proveedor_llm", "llm_url", "llm", "embeddings", "reranker",
-                             "umbral"}
+    assert set(r.json()) == {"modo", "listo", "clave", "almacen", "proveedor_llm", "llm_url", "llm", "embeddings",
+                             "reranker", "umbral"}
+    assert r.json()["clave"] is False
+    assert r.json()["listo"] is False  # nadie ha preguntado y no hubo precarga
+
+
+def test_log_de_la_consulta_sin_su_texto(llamadas: list[tuple], caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO, logger="app.api"):
+        cliente.post("/ia/consultar-guia", json={"pregunta": "¿Mi RUT 12.345.678-9 sirve?"})
+
+    linea = caplog.records[-1].getMessage()
+    for campo in ("ruta=consultar-guia", "estado=200", "espera_s=", "encontrada=true", "confianza=alta",
+                  "mejor=0.93", "modo=local"):
+        assert campo in linea
+    assert "RUT" not in caplog.text
+
+
+def test_salud_no_usa_el_grupo_de_hilos() -> None:
+    # Las consultas que esperan turno ocupan hilos; si /salud usara uno, dejaría de
+    # responder con la cola llena y el servidor la daría por caída.
+    assert inspect.iscoroutinefunction(api.salud)
+
+
+def test_listo_despues_de_la_primera_consulta(llamadas: list[tuple]) -> None:
+    cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"})
+
+    assert cliente.get("/salud").json()["listo"] is True
+
+
+def test_cola_llena(monkeypatch: pytest.MonkeyPatch, llamadas: list[tuple]) -> None:
+    # Sin cupos libres se responde 503 de inmediato, sin esperar turno.
+    monkeypatch.setattr(config, "ESPERA_TURNO_S", 60.0)
+    cupos = threading.BoundedSemaphore(1)
+    cupos.acquire()
+    monkeypatch.setattr(api, "_cupos", cupos)
+
+    r = cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"})
+
+    assert r.status_code == 503
+    assert r.headers["Retry-After"] == str(api.REINTENTAR_S)
+    assert llamadas == []
+
+
+def test_log_del_503(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    def responder(*_args):
+        raise RuntimeError("El modelo no está disponible. Inicia Ollama (ollama serve).")
+
+    monkeypatch.setattr(api, "responder", responder)
+    cupos = threading.BoundedSemaphore(1)
+    with caplog.at_level(logging.INFO, logger="app.api"):
+        cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"})
+        cupos.acquire()
+        monkeypatch.setattr(api, "_cupos", cupos)
+        cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"})
+
+    assert [r.getMessage() for r in caplog.records] == [
+        'ruta=consultar-guia estado=503 motivo="El modelo no está disponible. Inicia Ollama (ollama serve)." '
+        'espera_s=0',
+        "ruta=consultar-guia estado=503 motivo=cola_llena",
+    ]
+
+
+def test_no_llega_el_turno(monkeypatch: pytest.MonkeyPatch, llamadas: list[tuple]) -> None:
+    monkeypatch.setattr(config, "ESPERA_TURNO_S", 0.05)
+    api._turno.acquire()  # otra consulta en curso
+
+    r = cliente.post("/ia/sugerir-proximos-pasos", json={"etapa": 7})
+    api._turno.release()
+
+    assert r.status_code == 503
+    assert "Reintenta" in r.json()["detail"]
+    # El cupo se devolvió: con el turno libre, la siguiente se atiende.
+    assert cliente.post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"}).status_code == 200
+    assert llamadas == [("¿Qué es?", None, False)]
+
+
+def test_error_inesperado(monkeypatch: pytest.MonkeyPatch) -> None:
+    def responder(*_args):
+        raise KeyError("pagina_inicio")
+
+    monkeypatch.setattr(api, "responder", responder)
+    r = TestClient(api.app, raise_server_exceptions=False).post("/ia/consultar-guia", json={"pregunta": "¿Qué es?"})
+
+    assert r.status_code == 500
+    assert r.json()["detail"].startswith("Error inesperado")
+    assert "pagina_inicio" not in r.text
+    assert not api._turno.locked()  # el turno se libera aunque falle
+
+
+def test_aviso_sin_clave(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger="app.api"), TestClient(api.app):
+        pass
+
+    assert "CLAVE_SERVICIO está vacía" in caplog.text
+
+
+def test_sin_aviso_con_clave(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    monkeypatch.setattr(api, "_clave_servicio", lambda: "clave-de-prueba")
+    with caplog.at_level(logging.WARNING, logger="app.api"), TestClient(api.app):
+        pass
+
+    assert "CLAVE_SERVICIO" not in caplog.text
+
+
+@pytest.mark.parametrize("falla", [False, True])
+def test_precarga(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, falla: bool) -> None:
+    from app.rag import recuperar
+
+    def precargar() -> None:
+        assert api._turno.locked()  # una consulta que llegue mientras tanto espera turno
+        if falla:
+            raise RuntimeError("El índice está vacío.")
+
+    monkeypatch.setattr(recuperar, "precargar", precargar)
+    monkeypatch.setattr(config, "MODO", "local")
+    monkeypatch.setattr(config, "PRECARGAR", True)
+    with caplog.at_level(logging.INFO, logger="app.api"), TestClient(api.app) as c:
+        for hilo in threading.enumerate():  # si ya terminó, no queda ninguno
+            if hilo.name == "precarga":
+                hilo.join(timeout=5)
+        listo = c.get("/salud").json()["listo"]
+
+    assert listo is not falla
+    assert not api._turno.locked()
+    assert ("No se pudieron precargar" in caplog.text) is falla
 
 
 @pytest.mark.parametrize("encabezados", [{}, {"Authorization": "Bearer otra"}, {"Authorization": "clave-de-prueba"}])
@@ -159,3 +295,14 @@ def test_sugerir_pide_la_clave(monkeypatch: pytest.MonkeyPatch, sugerencias: lis
     assert sin_clave.status_code == 401
     assert con_clave.status_code == 200
     assert sugerencias == [(7, None, None)]
+
+
+def test_openapi_documenta_fuentes_y_confianza() -> None:
+    # Quien integra la API ve en /openapi.json los campos de cada fuente y los valores de la confianza.
+    esquemas = cliente.get("/openapi.json").json()["components"]["schemas"]
+
+    assert set(esquemas["Fuente"]["properties"]) == CAMPOS_FUENTE
+    assert set(esquemas["Fuente"]["required"]) == CAMPOS_FUENTE
+    assert set(esquemas["Respuesta"]["properties"]) == CAMPOS_CONTRATO
+    confianza = esquemas["Respuesta"]["properties"]["confianza"]["anyOf"]
+    assert {"enum": ["alta", "media", "baja"], "type": "string"} in confianza

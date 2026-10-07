@@ -245,10 +245,14 @@ python3.12 -m venv .venv
 ```
 
 ```bash
-.venv/bin/pip install -r ingesta/requirements.txt
+.venv/bin/pip install -r ingesta/requirements.txt -r requirements-dev.txt -c requirements.lock
 ```
 
-La consulta sola (sin Docling) necesita únicamente `backend/requirements.txt`.
+`requirements.lock` fija las versiones exactas con que se midió [`eval/`](eval/): sin él, pip instala
+las más nuevas dentro de los rangos, y una versión nueva de transformers o torch puede cambiar los
+puntajes. En Linux o WSL agrega `--extra-index-url https://download.pytorch.org/whl/cpu`: el lock fija
+torch de CPU, que está en el índice de PyTorch. La consulta sola (sin Docling) necesita únicamente
+`backend/requirements.txt`.
 
 **2. Descarga el LLM (~3,3 GB).** Con LM Studio, sigue [LLM en cada equipo](#-llm-en-cada-equipo).
 
@@ -261,6 +265,8 @@ ollama pull gemma3:4b
 ```bash
 .venv/bin/python -m ingesta.indexar
 ```
+
+Si la API está corriendo, reiníciala después de indexar: abre el índice una sola vez.
 
 **4. Pregunta** (desde `backend/`):
 
@@ -560,7 +566,50 @@ Render: directorio raíz `backend`, build `pip install -r requirements-simulador
 backend de la plataforma, que ya valida la sesión de la persona: la clave nunca va en el navegador.
 En tu equipo se guarda con `python -m app.rag.secretos guardar CLAVE_SERVICIO` (desde `backend/`;
 llavero o `.env`, como `SUPABASE_DB_URL`); en un servidor, como variable de entorno. Vacía, la API
-no pide clave: así funciona el chatbot de prueba.
+no pide clave: así funciona el chatbot de prueba. Si la API arranca sin clave, lo avisa en el log.
+
+**Turno, cola y errores.** Los modelos atienden una consulta a la vez. Mientras se atiende una,
+esperan turno hasta `COLA_MAXIMA` más (2 por defecto), cada una `ESPERA_TURNO_S` como máximo (300 s):
+
+| Situación | Respuesta |
+| --- | --- |
+| La cola está llena | `503` de inmediato, con `Retry-After: 120` |
+| No llegó el turno a tiempo | `503` con `Retry-After: 120` |
+| El servidor del LLM o el índice de Supabase no responden | `503` con qué revisar en `detail` |
+| Cualquier otro error | `500` con un `detail` genérico; la traza queda en el log |
+
+`GET /salud` no espera turno: responde aunque la cola esté llena. `listo` dice si los modelos ya
+están cargados y `clave`, si la API la pide. Con `PRECARGAR=true` la API carga bge-m3, el reranker y
+el índice al arrancar, en segundo plano, y la primera consulta no los espera; conviene en un
+servidor que atiende a la plataforma. El LLM lo carga su propio servidor con la primera consulta.
+
+**Log.** Cada solicitud deja una línea `clave=valor` en el log de uvicorn, y cada respuesta otra con
+el desglose de tiempos y los tokens del LLM ([`registro.py`](backend/app/rag/registro.py)). No
+guardan el texto de la pregunta ni del proyecto, solo su largo. Por ejemplo, la primera pregunta tras
+arrancar (la recuperación incluye cargar los modelos) en un Mac M2 de 8 GB, una pregunta que el
+umbral rechaza y una consulta con la cola llena:
+
+```text
+INFO app.rag.generar: etapa=- filtrar_etapa=false largo_pregunta=30 mejor=0.95 fragmentos=4 t_recuperacion_s=25.9 t_llm_s=53.3 tokens_prompt=1683 tokens_respuesta=78 encontrada=true
+INFO app.api: ruta=consultar-guia estado=200 espera_s=0 latencia_s=79.2 encontrada=true confianza=alta mejor=0.95 fuentes=4 modo=local prompt=v4
+INFO app.rag.generar: etapa=- filtrar_etapa=false largo_pregunta=32 mejor=0.032 fragmentos=0 t_recuperacion_s=101.6 llm=no tokens_prompt=0 tokens_respuesta=0 encontrada=false
+WARNING app.api: ruta=consultar-guia estado=503 motivo=cola_llena
+```
+
+`mejor` es el puntaje del reranker, también en las preguntas rechazadas: con `grep llm=no` salen las
+que no pasaron el `UMBRAL`, el dato para recalibrarlo con preguntas reales.
+
+**Tokens.** `tokens_prompt` (instrucciones, fragmentos y pregunta) y `tokens_respuesta` son los que
+informa el servidor del LLM; «-» si no los informa. Con un modelo local no tienen costo por uso,
+pero sirven para estimar cuánto costaría la misma consulta en un servicio que cobra por token: tokens
+de cada tipo × su precio. Es una estimación: cada modelo cuenta los tokens con su propio
+tokenizador, así que otro modelo puede contar unos más o unos menos. Una pregunta que el umbral rechaza registra 0, porque no llama al LLM. Para sumarlos,
+guarda el log al arrancar la API (`uvicorn app.api:app --port 8000 2>&1 | tee api.log`) y después:
+
+```bash
+awk '/tokens_prompt=/ {n++; for (i=1; i<=NF; i++) if ($i ~ /^tokens_(prompt|respuesta)=[0-9]+$/) {split($i, c, "="); t[c[1]] += c[2]}}
+     END {print n " consultas · prompt: " t["tokens_prompt"]+0 " · respuesta: " t["tokens_respuesta"]+0}' api.log
+```
 
 ---
 
@@ -579,8 +628,19 @@ campos del contrato, la validación de la API y las etapas con el contexto que r
 
 No miden la calidad de las respuestas: eso lo hacen los scripts de [`eval/`](eval/). El
 [CI](.github/workflows/ci.yml) corre `ruff check` y `pytest` para el backend, y `npm run lint` y
-`npm run build` para el chatbot, en cada PR y en cada push a `main`. Dependabot propone una vez al
-mes las actualizaciones de npm, pip y GitHub Actions.
+`npm run build` para el chatbot, en cada PR y en cada push a `main`, con las versiones de
+`requirements.lock`. Dependabot propone una vez al mes las actualizaciones de npm, pip y GitHub
+Actions.
+
+Para actualizar las dependencias de Python, cambia los rangos de los `requirements*.txt` (o acepta
+el PR de Dependabot), regenera el lock con [uv](https://docs.astral.sh/uv/) y vuelve a correr la
+evaluación que corresponda:
+
+```bash
+uv pip compile requirements-dev.txt ingesta/requirements.txt --universal --python-version 3.12 --torch-backend cpu -o requirements.lock --upgrade
+```
+
+Sin `--upgrade`, `uv` conserva las versiones del lock y solo agrega o quita lo que cambió.
 
 ---
 
@@ -591,8 +651,9 @@ mes las actualizaciones de npm, pip y GitHub Actions.
 ├── backend/
 │   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia y /ia/sugerir-proximos-pasos
 │   ├── app/rag/            Consulta: config, modelos, indice, recuperar, guia, prompts, generar;
-│   │                       asistente por etapa: prompts_etapa, sugerir; contrato (forma de la
-│   │                       respuesta) y simulador (respuestas fijas, sin modelos)
+│   │                       asistente por etapa: prompts_etapa, sugerir; flujo (pasos comunes de
+│   │                       los dos), contrato (forma de la respuesta), simulador (respuestas
+│   │                       fijas, sin modelos) y registro (log por consulta)
 │   ├── requirements-simulador.txt  Solo la API con MODO=simulador
 │   └── tests/              Tests con pytest, sin modelos ni Ollama
 ├── ingesta/                PDF → JSON de Docling → corpus (con limpieza) → índice vectorial
@@ -602,6 +663,7 @@ mes las actualizaciones de npm, pip y GitHub Actions.
 ├── eval/                   Preguntas, scripts de comparación y calibración, resultados
 ├── supabase/migrations/    Tabla public.data_guia_fragmentos con pgvector
 ├── src/                    Chatbot de prueba (React + Vite), conectado a la API
+├── requirements.lock       Versiones exactas de Python con que se midió eval/
 └── .github/                CI (lint, tipos, build y tests) y Dependabot
 ```
 
