@@ -17,10 +17,12 @@ extraer() convierte desde memoria, sin escribir a disco:
   DOCX   Docling, con su backend de Word: no carga modelos (SimplePipeline).
   MD     Igual que DOCX. Una sección por cada título.
 
-Docling se salta a veces bloques de texto: con el PDF de ejemplo
-(tests/datos/adjuntos/perfil.pdf) dejó vacía la página 3, que solo tiene un
-párrafo corto. Por eso cada página se compara con el texto crudo de pypdfium2
-y, si Docling devuelve menos de la mitad de los caracteres, se usa el crudo.
+Docling no siempre deja cada bloque en su página: con el PDF de ejemplo
+(tests/datos/adjuntos/perfil.pdf) pegó el párrafo de la página 3 al final de un
+bloque de la página 2 y dejó la 3 vacía. Por eso cada página se compara con el
+texto crudo de pypdfium2: si Docling devuelve menos de la mitad de los
+caracteres y ese texto no aparece en otra página de Docling, se usa el crudo.
+Así no se pierde texto ni se duplica.
 
 Las tablas quedan en markdown («| col | col |»), que es como mejor las lee el LLM.
 
@@ -171,6 +173,11 @@ def _sin_espacios(texto: str) -> int:
     return len(re.sub(r"\s", "", texto))
 
 
+def _comparable(texto: str) -> str:
+    """Solo letras y números, en minúsculas: para ver si un texto ya está en otro sin mirar el formato."""
+    return re.sub(r"[\W_]+", "", texto.lower())
+
+
 def secciones_por_titulo(markdown: str) -> list[Seccion]:
     """
     Divide un markdown en una sección por título («#» a «######»). El título queda
@@ -208,12 +215,15 @@ def _extraer_pdf(nombre: str, datos: bytes) -> ArchivoExtraido:
         raise ErrorAdjunto("El PDF parece escaneado: no tiene texto que pueda leer. Súbelo como DOCX o como PDF "
                            "exportado desde el editor de texto.")
     doc = _convertir(nombre, "pdf", datos)
+    paginas = [_limpio(doc.export_to_markdown(page_no=n, escape_html=False, image_placeholder=""))
+               for n in range(1, len(crudo) + 1)]
+    todo_docling = _comparable("\n".join(paginas))
     secciones: list[Seccion] = []
     titulo: str | None = None
-    for n, texto_crudo in enumerate(crudo, start=1):
-        texto = _limpio(doc.export_to_markdown(page_no=n, escape_html=False, image_placeholder=""))
-        if _sin_espacios(texto) < MINIMO_DOCLING * _sin_espacios(texto_crudo):
-            texto = _limpio(texto_crudo)  # Docling se saltó texto de esta página
+    for n, (texto, texto_crudo) in enumerate(zip(paginas, crudo, strict=True), start=1):
+        if (_sin_espacios(texto) < MINIMO_DOCLING * _sin_espacios(texto_crudo)
+                and _comparable(texto_crudo) not in todo_docling):
+            texto = _limpio(texto_crudo)  # Docling no dejó este texto en ninguna página
         titulo_pagina = titulo  # el último título visto antes de la página
         titulo = _ultimo_titulo(texto, titulo)
         if texto:

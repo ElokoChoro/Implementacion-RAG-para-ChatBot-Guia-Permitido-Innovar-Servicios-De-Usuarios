@@ -94,12 +94,19 @@ def test_pdf_escaneado_se_rechaza_sin_cargar_docling(monkeypatch: pytest.MonkeyP
     assert "escaneado" in e.value.mensaje
 
 
-def test_pdf_usa_el_texto_crudo_si_docling_se_salta_una_pagina(monkeypatch: pytest.MonkeyPatch) -> None:
-    class DocSinPagina3:
-        def export_to_markdown(self, page_no: int, **_kwargs) -> str:
-            return "" if page_no == 3 else f"## Título {page_no}\n\n" + "texto de Docling " * 30
+class DocFalso:
+    """DoclingDocument de prueba: el markdown de cada página sale de un diccionario."""
 
-    monkeypatch.setattr(ex, "_convertir", lambda *_args: DocSinPagina3())
+    def __init__(self, paginas: dict[int, str]) -> None:
+        self.paginas = paginas
+
+    def export_to_markdown(self, page_no: int, **_kwargs) -> str:
+        return self.paginas.get(page_no, "")
+
+
+def test_pdf_usa_el_texto_crudo_si_docling_pierde_una_pagina(monkeypatch: pytest.MonkeyPatch) -> None:
+    doc = DocFalso({1: "## Título 1\n\n" + "texto de Docling " * 30, 2: "## Título 2\n\n" + "otro texto " * 60})
+    monkeypatch.setattr(ex, "_convertir", lambda *_args: doc)
     archivo = ex.extraer("perfil.pdf", _leer("perfil.pdf"))
 
     assert archivo.paginas == 3
@@ -107,6 +114,17 @@ def test_pdf_usa_el_texto_crudo_si_docling_se_salta_una_pagina(monkeypatch: pyte
     assert archivo.secciones[0].titulo == "Título 1"
     assert "SEGUIMIENTO" in archivo.secciones[2].texto       # del texto crudo
     assert archivo.secciones[2].titulo == "Título 2"         # el último título visto
+
+
+def test_pdf_no_duplica_lo_que_docling_dejo_en_otra_pagina(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Lo que hizo Docling con perfil.pdf: el párrafo de la p. 3 quedó al final de la p. 2.
+    crudo = ex._texto_crudo_pdf(_leer("perfil.pdf"))
+    doc = DocFalso({1: crudo[0], 2: crudo[1] + "\n\n" + crudo[2].replace("\r\n", " ")})
+    monkeypatch.setattr(ex, "_convertir", lambda *_args: doc)
+    archivo = ex.extraer("perfil.pdf", _leer("perfil.pdf"))
+
+    assert [s.pagina for s in archivo.secciones] == [1, 2]
+    assert archivo.texto().count("SEGUIMIENTO") == 1
 
 
 def test_extrae_docx_por_titulos() -> None:
