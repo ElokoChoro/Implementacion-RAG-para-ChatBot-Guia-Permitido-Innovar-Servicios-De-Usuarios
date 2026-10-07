@@ -9,7 +9,7 @@ candidatos:
 
 Variables disponibles
 ---------------------
-VERSION_CORPUS         Versión del corpus en data/corpus/ (por defecto «v2»).
+VERSION_CORPUS         Versión del corpus en data/corpus/ (por defecto «v3»).
 EMBEDDINGS             Modelo de embeddings de Hugging Face («BAAI/bge-m3»).
 RERANKER               Modelo reranker de Hugging Face («BAAI/bge-reranker-v2-m3»).
 DISPOSITIVO            «cpu», «mps» (Apple Silicon) o «cuda:0». Vacío: lo elige FlagEmbedding.
@@ -105,7 +105,7 @@ def _env_opcion(nombre: str, defecto: str, opciones: tuple[str, ...]) -> str:
 # ---- Corpus -------------------------------------------------------------------
 # El corpus es el texto de la guía ya extraído y dividido en páginas con sus
 # metadatos. Se versiona en el repositorio; el PDF original no.
-VERSION_CORPUS = _env("VERSION_CORPUS", "v2")
+VERSION_CORPUS = _env("VERSION_CORPUS", "v3")
 RUTA_PAGINAS = RAIZ / "data" / "corpus" / VERSION_CORPUS / "paginas.jsonl"
 
 # ---- Modelos locales (FlagEmbedding) -----------------------------------------
@@ -199,7 +199,7 @@ MAX_CARACTERES_PROYECTO = _env("MAX_CARACTERES_PROYECTO", 1500, int)
 # LLM y, si no queda ninguno, se responde «No encuentro…» sin llamarlo. La
 # confianza se calcula con el mejor puntaje. Calibrados con
 # eval/calibrar_umbral.py: si cambia RERANKER, hay que volver a calibrar.
-# Con el corpus v2, las preguntas de fuera de la guía llegan como máximo a 0,40 y
+# Con el corpus v3, las preguntas de fuera de la guía llegan como máximo a 0,42 y
 # las respondibles parten en 0,72: 0,5 las separa con margen hacia el lado
 # seguro (es peor callar una respondible que dejar pasar una de fuera al LLM).
 UMBRAL = _env("UMBRAL", 0.5, float)

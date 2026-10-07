@@ -15,8 +15,8 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 | `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Umbral, llamada al LLM y armado de la respuesta, comunes a los dos: `flujo`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador`; log por consulta: `registro` |
 | `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y `GET /salud`; atiende las solicitudes de a una, con tope de cola (`COLA_MAXIMA`, `ESPERA_TURNO_S`) y 503 si no hay turno. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
-| `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`) → índice vectorial (`indexar`) |
-| `data/corpus/v2/` | Corpus vigente, una página por línea (`paginas.jsonl`) |
+| `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`, que limpia el texto con `limpieza`) → índice vectorial (`indexar`) |
+| `data/corpus/v3/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v2` es el anterior, sin limpieza |
 | `data/fuentes/guia.yaml` | Manifiesto y SHA-256 del PDF (el PDF no se versiona) |
 | `eval/` | Set de preguntas, scripts de comparación y calibración, resultados en `eval/resultados/` |
 | `supabase/migrations/` | Tabla `public.data_guia_fragmentos` con pgvector |
@@ -105,9 +105,12 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
 - **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `registro.py`, `prompts.py`, `prompts_etapa.py` y `guia.py`
   no importan LlamaIndex, FlagEmbedding ni clientes de LLM (o lo hacen dentro de una función), para
   que `MODO=simulador` corra con `backend/requirements-simulador.txt`. `test_simulador.py` lo revisa.
-- **Corpus**: `data/corpus/v2/paginas.jsonl` no se edita a mano; se regenera con `ingesta.corpus`.
-  Un cambio de extracción o de metadatos que altere el corpus va en una versión nueva
-  (`data/corpus/v3/`), no sobre `v2`. Las tablas de la guía (`SECCIONES`, `ACTIVIDADES`,
+- **Corpus**: `data/corpus/v3/paginas.jsonl` no se edita a mano, ni su texto en Supabase; se
+  regenera con `ingesta.corpus`. Un cambio de extracción, limpieza o metadatos que altere el corpus
+  va en una versión nueva (`data/corpus/v4/`), no sobre `v3`. La limpieza del texto está en
+  `ingesta/limpieza.py`: un problema nuevo se corrige con una regla o, si no sigue un patrón, con una
+  entrada de `CORRECCIONES` contrastada con el PDF, y lleva su test en `backend/tests/test_limpieza.py`.
+  Con `VERSION_CORPUS=v2`, `ingesta.corpus` sigue generando `v2` sin limpieza. Las tablas de la guía (`SECCIONES`, `ACTIVIDADES`,
   `HERRAMIENTAS`) y la etapa → actividad del Propósito 1 están en `backend/app/rag/guia.py`, que
   comparten la ingesta y el prompt: cambiarlas cambia el corpus. Los créditos (p. 2) se indexan como `FICHA_CREDITOS`
   (`ingesta/corpus.py`); si cambia la guía, revísala contra la página. Formato en [data/corpus/README.md](data/corpus/README.md).
