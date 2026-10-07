@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Chat } from './components/Chat'
 import { Sidebar } from './components/Sidebar'
-import { consultarGuia } from './lib/rag'
-import type { Conversation, Message } from './types'
+import { resumenAdjunto, validarArchivo } from './lib/adjuntos'
+import { borrarAdjunto, consultarGuia, leerLimites, LIMITES_POR_DEFECTO, subirAdjunto } from './lib/rag'
+import type { Conversation, LimitesAdjunto, Message } from './types'
 import './App.css'
 
 function createEmptyConversation(): Conversation {
@@ -25,6 +26,15 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [draft, setDraft] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [limites, setLimites] = useState<LimitesAdjunto>(LIMITES_POR_DEFECTO)
+  // Hora actual, para marcar los adjuntos vencidos; se actualiza cada 30 s.
+  const [ahora, setAhora] = useState(() => Date.now())
+
+  useEffect(() => {
+    leerLimites().then(setLimites)
+    const reloj = setInterval(() => setAhora(Date.now()), 30_000)
+    return () => clearInterval(reloj)
+  }, [])
 
   const filtered = useMemo(
     () =>
@@ -37,6 +47,67 @@ export default function App() {
   const active = conversations.find((item) => item.id === activeId) ?? conversations[0]
 
   const waiting = active.messages.some((message) => message.status === 'pending')
+
+  function updateConversation(conversationId: string, cambio: (conversation: Conversation) => Conversation) {
+    setConversations((current) =>
+      current.map((conversation) => (conversation.id === conversationId ? cambio(conversation) : conversation)),
+    )
+  }
+
+  function addMessage(conversationId: string, message: Omit<Message, 'id' | 'time'>) {
+    updateConversation(conversationId, (conversation) => ({
+      ...conversation,
+      updatedAt: 'Ahora',
+      messages: [...conversation.messages, { id: crypto.randomUUID(), time: now(), ...message }],
+    }))
+  }
+
+  async function attachFile(archivo: File) {
+    const conversationId = active.id
+    const error = validarArchivo(archivo, limites)
+    if (error) {
+      addMessage(conversationId, { role: 'assistant', content: error, status: 'error' })
+      return
+    }
+
+    updateConversation(conversationId, (conversation) => ({ ...conversation, subiendo: archivo.name }))
+    try {
+      const adjunto = await subirAdjunto(archivo)
+      updateConversation(conversationId, (conversation) => ({
+        ...conversation,
+        subiendo: null,
+        title: conversation.messages.length === 0 ? adjunto.nombre.slice(0, 42) : conversation.title,
+        preview: `Adjunto: ${adjunto.nombre}`,
+        adjuntos: [...(conversation.adjuntos ?? []), { datos: adjunto, vence: Date.now() + adjunto.expira_en_s * 1000 }],
+      }))
+      addMessage(conversationId, { role: 'assistant', content: resumenAdjunto(adjunto) })
+    } catch (error) {
+      updateConversation(conversationId, (conversation) => ({ ...conversation, subiendo: null }))
+      addMessage(conversationId, {
+        role: 'assistant',
+        content: error instanceof Error ? error.message : 'Error desconocido.',
+        status: 'error',
+      })
+    }
+  }
+
+  async function removeAttachment(adjuntoId: string) {
+    const conversationId = active.id
+    try {
+      await borrarAdjunto(adjuntoId)
+    } catch (error) {
+      addMessage(conversationId, {
+        role: 'assistant',
+        content: error instanceof Error ? error.message : 'Error desconocido.',
+        status: 'error',
+      })
+      return
+    }
+    updateConversation(conversationId, (conversation) => ({
+      ...conversation,
+      adjuntos: (conversation.adjuntos ?? []).filter((adjunto) => adjunto.datos.adjunto_id !== adjuntoId),
+    }))
+  }
 
   function updateMessage(conversationId: string, messageId: string, patch: Partial<Message>) {
     setConversations((current) =>
@@ -139,6 +210,10 @@ export default function App() {
         draft={draft}
         onDraftChange={setDraft}
         onSend={sendMessage}
+        onAttach={attachFile}
+        onRemoveAttachment={removeAttachment}
+        limites={limites}
+        ahora={ahora}
         waiting={waiting}
         onToggleSidebar={() => setSidebarOpen(true)}
       />

@@ -187,6 +187,8 @@
 .chat {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  /* minmax(0, 1fr): un título largo (p. ej., el nombre de un adjunto) no ensancha el chat */
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -200,8 +202,15 @@
   border-bottom: 1px solid var(--border);
 }
 
+.chat-header > div {
+  min-width: 0;
+}
+
 .chat h1 {
   font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .icon-btn,
@@ -374,16 +383,90 @@
   font-size: 11px;
 }
 
+.composer-area {
+  width: min(820px, calc(100% - 44px));
+  margin: 0 auto 22px 22px;
+}
+
 .composer {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  width: min(820px, calc(100% - 44px));
-  margin: 0 auto 22px 22px;
   padding: 10px;
   border-radius: 18px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 6px 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  background: var(--accent-dim);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.attachment button:hover,
+.attachment button:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.attachment.pending {
+  padding-right: 12px;
+  border-style: dashed;
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.attachment.expired {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.attachment-note {
+  color: var(--danger);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .composer textarea {
