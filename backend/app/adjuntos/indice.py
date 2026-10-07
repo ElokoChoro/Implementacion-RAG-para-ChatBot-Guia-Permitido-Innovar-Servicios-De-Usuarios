@@ -35,11 +35,9 @@ from llama_index.core import Document, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import NodeWithScore
 
-from app.adjuntos.tipos import AdjuntoCargado, ArchivoExtraido, ErrorAdjunto, Seccion
+from app.adjuntos.tipos import NO_DISPONIBLE, AdjuntoCargado, ArchivoExtraido, ErrorAdjunto, Seccion
 from app.rag import config
 from app.rag.modelos import embedding, reordenador
-
-NO_DISPONIBLE = "El documento ya no está disponible: vuelve a subirlo."
 
 
 @dataclass

@@ -15,6 +15,8 @@ from dataclasses import asdict, dataclass, field
 
 # Los que sabe leer extraer.py. Los que acepta la API van en config.FORMATOS_ADJUNTO.
 FORMATOS = ("pdf", "docx", "md")
+# Respuesta cuando un adjunto no existe o ya venció (404).
+NO_DISPONIBLE = "El documento ya no está disponible: vuelve a subirlo."
 
 
 class ErrorAdjunto(Exception):

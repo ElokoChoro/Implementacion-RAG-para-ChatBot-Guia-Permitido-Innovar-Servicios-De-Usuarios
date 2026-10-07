@@ -97,7 +97,7 @@ def test_salud() -> None:
 
     assert r.status_code == 200
     assert set(r.json()) == {"modo", "listo", "clave", "almacen", "proveedor_llm", "llm_url", "llm", "embeddings",
-                             "reranker", "umbral"}
+                             "reranker", "umbral", "formatos_adjunto", "max_mb_adjunto", "adjuntos_vigentes"}
     assert r.json()["clave"] is False
     assert r.json()["listo"] is False  # nadie ha preguntado y no hubo precarga
 

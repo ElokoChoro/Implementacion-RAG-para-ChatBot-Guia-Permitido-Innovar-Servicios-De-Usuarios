@@ -7,11 +7,17 @@ API HTTP del módulo RAG, para la interfaz de chat de demo y la plataforma SSP-U
     POST /ia/sugerir-proximos-pasos  {"etapa": 7, "contexto": "...", "datos_etapa": {...}}
                                      → la misma `Respuesta`, con los próximos pasos de la
                                        etapa (sugerir.py)
+    POST /ia/adjuntos                multipart con el campo «archivo» (PDF o DOCX; ver
+                                     FORMATOS_ADJUNTO) → `AdjuntoCargado` (app/adjuntos/):
+                                     el archivo leído, seudonimizado e indexado en memoria
+    DELETE /ia/adjuntos/{id}         quita el adjunto de la memoria (204, o 404 si no está)
     GET  /salud                      configuración con la que corre y si los modelos ya
                                      están cargados (`listo`), sin cargarlos
 
 Las preguntas se atienden de a una: bge-m3, el reranker y el LLM comparten la
-memoria del equipo y dos consultas a la vez no caben en un Mac de 8 GB. Mientras
+memoria del equipo y dos consultas a la vez no caben en un Mac de 8 GB. Los
+adjuntos esperan el mismo turno, porque usan bge-m3 y Docling; antes de pedirlo
+se valida el archivo, para que uno inválido no haga cola. Mientras
 se atiende una, esperan turno hasta COLA_MAXIMA más, cada una ESPERA_TURNO_S
 como máximo; las que no caben o no alcanzan turno reciben 503 con Retry-After,
 para que quien llama reintente más tarde. /salud no espera turno.
@@ -27,7 +33,7 @@ importar LlamaIndex ni los modelos. Sirve para que la plataforma integre la API
 sin el equipo que tiene los modelos; las marcas para probar cada caso están en
 simulador.py.
 
-Si CLAVE_SERVICIO tiene valor, los dos POST exigen
+Si CLAVE_SERVICIO tiene valor, los POST y el DELETE exigen
 «Authorization: Bearer <clave>» y responde 401 sin ella. La API la llama el
 backend de la plataforma, no el navegador: la clave nunca va en el frontend.
 /salud no pide clave, para que el servidor pueda revisar que la API está viva.
@@ -53,17 +59,21 @@ from contextlib import asynccontextmanager
 from functools import cache
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from app.adjuntos.extraer import validar
+from app.adjuntos.tipos import NO_DISPONIBLE, AdjuntoCargado, ErrorAdjunto
 from app.rag import config, registro
 from app.rag.contrato import Respuesta
 
 if config.MODO == "simulador":
-    from app.rag.simulador import responder, sugerir
+    from app.rag.simulador import adjuntos_vigentes, borrar_adjunto, cargar_adjunto, responder, sugerir
 else:
+    from app.adjuntos.cargar import cargar_adjunto
+    from app.adjuntos.indice import borrar as borrar_adjunto, vigentes as adjuntos_vigentes
     from app.rag.generar import responder
     from app.rag.sugerir import sugerir
 
@@ -148,12 +158,13 @@ def _ocupada() -> HTTPException:
                          detail="La API está atendiendo otras consultas. Reintenta en unos minutos.")
 
 
-def _atender(ruta: str, consulta: Callable[[], Respuesta]) -> dict:
+def _con_turno[T](ruta: str, tarea: Callable[[], T]) -> tuple[T, float]:
     """
-    Corre `consulta` cuando le toca el turno y deja una línea en el log con el resultado.
+    Corre `tarea` cuando le toca el turno y devuelve su resultado y los segundos que esperó.
 
     503 si la cola está llena, si no llega el turno en ESPERA_TURNO_S o si la
-    consulta lanza RuntimeError (servidor del LLM o índice no disponibles).
+    tarea lanza RuntimeError (servidor del LLM o índice no disponibles). Cualquier
+    otra excepción sale tal cual, con el turno ya devuelto.
     """
     t0 = time.time()
     if not _cupos.acquire(blocking=False):
@@ -166,7 +177,7 @@ def _atender(ruta: str, consulta: Callable[[], Respuesta]) -> dict:
             raise _ocupada()
         espera = round(time.time() - t0, 1)
         try:
-            respuesta = consulta()
+            return tarea(), espera
         except RuntimeError as e:
             log.error(registro.campos(ruta=ruta, estado=503, motivo=str(e), espera_s=espera))
             raise HTTPException(status_code=503, detail=str(e)) from e
@@ -174,6 +185,11 @@ def _atender(ruta: str, consulta: Callable[[], Respuesta]) -> dict:
             _turno.release()
     finally:
         _cupos.release()
+
+
+def _atender(ruta: str, consulta: Callable[[], Respuesta]) -> dict:
+    """Corre `consulta` con turno (ver _con_turno) y deja una línea en el log con el resultado."""
+    respuesta, espera = _con_turno(ruta, consulta)
     _listo.set()
     log.info(registro.campos(ruta=ruta, estado=200, espera_s=espera, latencia_s=respuesta.latencia_s,
                              encontrada=respuesta.encontrada, confianza=respuesta.confianza,
@@ -210,6 +226,41 @@ def sugerir_proximos_pasos(solicitud: SolicitudEtapa) -> dict:
                     lambda: sugerir(solicitud.etapa, solicitud.contexto, solicitud.datos_etapa))
 
 
+def _rechazar_adjunto(e: ErrorAdjunto, kb: int, **campos) -> HTTPException:
+    # El motivo va a la persona; al log solo el código, sin el nombre del archivo ni su texto.
+    log.info(registro.campos(ruta="adjuntos", estado=e.estado, kb=kb, **campos))
+    return HTTPException(status_code=e.estado, detail=e.mensaje)
+
+
+@app.post("/ia/adjuntos", response_model=AdjuntoCargado, dependencies=[Depends(_verificar_clave)])
+def subir_adjunto(archivo: Annotated[UploadFile, File(description="PDF o DOCX (ver FORMATOS_ADJUNTO en /salud)")]
+                  ) -> dict:
+    # Se lee un byte más que el tope: alcanza para rechazar un archivo grande sin leerlo entero.
+    datos = archivo.file.read(int(config.MAX_MB_ADJUNTO * 1024 * 1024) + 1)
+    nombre = archivo.filename or ""
+    kb = round(len(datos) / 1024)
+    try:
+        formato = validar(nombre, datos)
+    except ErrorAdjunto as e:
+        raise _rechazar_adjunto(e, kb) from e
+    try:
+        adjunto, espera = _con_turno("adjuntos", lambda: cargar_adjunto(nombre, datos))
+    except ErrorAdjunto as e:
+        raise _rechazar_adjunto(e, kb, formato=formato) from e
+    log.info(registro.campos(ruta="adjuntos", estado=200, formato=formato, kb=kb, paginas=adjunto.paginas,
+                             fragmentos=adjunto.fragmentos, reemplazos=sum(adjunto.reemplazos.values()),
+                             espera_s=espera, latencia_s=adjunto.latencia_s, modo=adjunto.modo))
+    return adjunto.a_dict()
+
+
+@app.delete("/ia/adjuntos/{adjunto_id}", status_code=204, dependencies=[Depends(_verificar_clave)])
+def quitar_adjunto(adjunto_id: str) -> Response:
+    # Sin turno: solo saca el adjunto de la memoria.
+    if not borrar_adjunto(adjunto_id):
+        raise HTTPException(status_code=404, detail=NO_DISPONIBLE)
+    return Response(status_code=204)
+
+
 @app.get("/salud")
 async def salud() -> dict:
     # `async def`: corre en el bucle del servidor y no en el grupo de hilos, que pueden
@@ -217,4 +268,6 @@ async def salud() -> dict:
     return {"modo": config.MODO, "listo": _listo.is_set(), "clave": bool(_clave_servicio()),
             "almacen": config.ALMACEN, "proveedor_llm": config.PROVEEDOR_LLM,
             "llm_url": config.url_llm(), "llm": config.LLM, "embeddings": config.EMBEDDINGS,
-            "reranker": config.RERANKER, "umbral": config.UMBRAL}
+            "reranker": config.RERANKER, "umbral": config.UMBRAL,
+            "formatos_adjunto": list(config.FORMATOS_ADJUNTO), "max_mb_adjunto": config.MAX_MB_ADJUNTO,
+            "adjuntos_vigentes": adjuntos_vigentes()}
