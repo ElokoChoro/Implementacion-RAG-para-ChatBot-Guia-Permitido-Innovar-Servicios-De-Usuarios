@@ -13,7 +13,8 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 | Carpeta | Contenido |
 | --- | --- |
 | `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Umbral, llamada al LLM y armado de la respuesta, comunes a los dos: `flujo`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador`; log por consulta: `registro` |
-| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y `GET /salud`; atiende las solicitudes de a una, con tope de cola (`COLA_MAXIMA`, `ESPERA_TURNO_S`) y 503 si no hay turno. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
+| `backend/app/adjuntos/` | Adjuntos (PDF, DOCX; MD con `FORMATOS_ADJUNTO`): `extraer` (Docling, con validación sin Docling), `seudonimizar` (RUT, correo, teléfono), `indice` (en memoria, por adjunto), `cargar` (los tres); `tipos` lo comparten con la API y el simulador |
+| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos`, `POST /ia/adjuntos`, `DELETE /ia/adjuntos/{id}` y `GET /salud`; atiende las solicitudes de a una, con tope de cola (`COLA_MAXIMA`, `ESPERA_TURNO_S`) y 503 si no hay turno. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`, que limpia el texto con `limpieza`) → índice vectorial (`indexar`) |
 | `data/corpus/v3/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v2` es el anterior, sin limpieza |
@@ -102,7 +103,7 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   de cada fuente (`Fuente`) con `CAMPOS_FUENTE` (`backend/tests/conftest.py`), copias de
   `RespuestaGuia` de `src/lib/rag.ts` y `Fuente` de `src/types.ts`; si el cambio se acuerda,
   actualiza los tres lugares, y también las respuestas de `simulador.py`.
-- **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `registro.py`, `prompts.py`, `prompts_etapa.py` y `guia.py`
+- **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `registro.py`, `prompts.py`, `prompts_etapa.py`, `guia.py`, `adjuntos/tipos.py` y `adjuntos/extraer.py`
   no importan LlamaIndex, FlagEmbedding ni clientes de LLM (o lo hacen dentro de una función), para
   que `MODO=simulador` corra con `backend/requirements-simulador.txt`. `test_simulador.py` lo revisa.
 - **Corpus**: `data/corpus/v3/paginas.jsonl` no se edita a mano, ni su texto en Supabase; se
@@ -120,6 +121,11 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   que corresponda.
 - **Evaluación**: los resultados de `eval/resultados/*.json` se versionan. Si vuelves a correr un
   script, actualiza la tabla correspondiente de `eval/README.md` con la fecha.
+- **Adjuntos**: el texto se seudonimiza antes de fragmentarlo y vectorizarlo; el índice de cada
+  adjunto vive en memoria, separado de la guía, y no se persiste (ni disco ni Supabase); el nombre
+  del archivo y su texto no van al log. `AdjuntoCargado` (`adjuntos/tipos.py`) es contrato como
+  `Respuesta`: sus campos se comparan con `CAMPOS_ADJUNTO` y con `AdjuntoCargado` de `src/types.ts`.
+  `tipos.py` y `extraer.validar()` no importan Docling ni LlamaIndex: los usa el simulador.
 - **Migraciones**: nunca edites una migración ya aplicada; agrega una nueva con fecha en el nombre.
   La tabla del índice tiene RLS activo y sin políticas a propósito: solo el backend la lee, con la
   conexión directa a Postgres.

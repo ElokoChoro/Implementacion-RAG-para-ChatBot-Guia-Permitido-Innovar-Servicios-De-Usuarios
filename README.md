@@ -527,8 +527,8 @@ cd backend && ../.venv/bin/uvicorn app.api:app --port 8000
 npm install && npm run dev
 ```
 
-Vite reenvía `/ia` a `http://localhost:8000` (cámbialo con `RAG_API_URL`), así que el backend no
-necesita CORS. Las preguntas se atienden de a una y la primera carga los modelos, así que tarda más;
+Vite reenvía `/ia` y `/salud` a `http://localhost:8000` (cámbialo con `RAG_API_URL`), así que el
+backend no necesita CORS. Las preguntas se atienden de a una y la primera carga los modelos, así que tarda más;
 en un Mac de 8 GB cada respuesta puede tardar minutos. Si el LLM no está disponible, la API responde
 503 con el motivo y la interfaz lo muestra en el chat. `GET /salud` muestra la configuración activa
 y `http://localhost:8000/docs`, el esquema de la API.
@@ -541,6 +541,59 @@ Responde con la misma forma que `POST /ia/consultar-guia`, con `version_prompt` 
 curl -X POST localhost:8000/ia/sugerir-proximos-pasos -H 'Content-Type: application/json' \
   -d '{"etapa": 7, "contexto": "Renovación del permiso de circulación", "datos_etapa": {"mapa_momentos_criticos": "pendiente"}}'
 ```
+
+### Adjuntos (PDF y DOCX)
+
+La persona puede adjuntar un documento con el clip del chat. Por ahora el chatbot **solo lo lee**:
+todavía no responde preguntas sobre él. `POST /ia/adjuntos` ([`backend/app/adjuntos/`](backend/app/adjuntos/))
+lo procesa en cuatro pasos:
+
+1. **Valida** el formato, que el contenido corresponda a la extensión y el tamaño, antes de pedir
+   turno: un archivo inválido no hace cola.
+2. **Extrae** el texto con Docling, con las mismas opciones que la ingesta de la guía (sin OCR). En
+   un PDF, pypdfium2 cuenta las páginas y rechaza los PDF con contraseña y los escaneados antes de
+   cargar el layout. Cada página se contrasta con su texto crudo: con el PDF de ejemplo, Docling pegó
+   el párrafo de la página 3 a la página 2.
+3. **Seudonimiza** RUT (con dígito verificador), correos y teléfonos: `[RUT_1]`, `[CORREO_1]`,
+   `[TELEFONO_1]`, con el mismo marcador para el mismo valor en todo el documento. **Los nombres de
+   personas todavía no se detectan.**
+4. **Indexa en memoria**, separado de la guía, con la misma fragmentación, bge-m3 y reranker. No se
+   guarda en disco ni en Supabase, y se descarta a los `MINUTOS_ADJUNTO` (60) o al quitarlo
+   (`DELETE /ia/adjuntos/{id}`). Si la API se reinicia, hay que volver a subirlo.
+
+```bash
+curl -F archivo=@backend/tests/datos/adjuntos/perfil.pdf localhost:8000/ia/adjuntos
+curl -X DELETE localhost:8000/ia/adjuntos/<adjunto_id>
+```
+
+| Variable | Por defecto | Qué controla |
+| --- | --- | --- |
+| `FORMATOS_ADJUNTO` | `pdf,docx` | Formatos aceptados; el código también lee `md` (`pdf,docx,md`) |
+| `MAX_MB_ADJUNTO` | `10` | Tamaño máximo (413 si lo pasa) |
+| `MAX_PAGINAS_ADJUNTO` | `40` | Páginas máximas de un PDF (413) |
+| `MIN_CARACTERES_PAGINA` | `30` | Bajo este promedio por página, el PDF se trata como escaneado (422) |
+| `MINUTOS_ADJUNTO` / `MAX_ADJUNTOS` | `60` / `5` | Cuánto dura un adjunto en memoria y cuántos se guardan a la vez |
+
+Errores con qué hacer en `detail`: 415 formato o contenido que no corresponde, 413 tamaño o páginas,
+422 vacío, dañado, con contraseña o sin texto, 503 sin turno o sin modelos. El log registra
+formato, KB, páginas, fragmentos y cantidad de datos reemplazados; nunca el nombre del archivo ni su
+texto. `GET /salud` informa `formatos_adjunto`, `max_mb_adjunto` y `adjuntos_vigentes`.
+
+**Medido el 2026-10-07** en un Mac M2 de 8 GB, con los ejemplos de
+[`backend/tests/datos/adjuntos/`](backend/tests/datos/adjuntos/) (datos ficticios):
+
+| Archivo | Respuesta | Tiempo |
+| --- | --- | --- |
+| `perfil.pdf` (3 páginas), primero tras arrancar | 200, 2 fragmentos | 13,2 s (carga el layout de Docling y bge-m3) |
+| `perfil.pdf`, segunda vez | 200 | 1,4 s |
+| `perfil.docx` | 200, 4 fragmentos | 0,6 s |
+| `escaneado.pdf` | 422 | < 0,01 s |
+| `no-es-pdf.pdf` | 415 | < 0,01 s |
+
+Con el layout de Docling y bge-m3 cargados, el proceso de la API ocupa **3,6 GB** (`footprint`; el
+RSS de `ps` sale mucho menor porque macOS comprime la memoria). Una pregunta suma el reranker
+(~1,2 GB) y el LLM corre aparte (gemma3:4b, ~3,3 GB): en un equipo de 8 GB, subir un PDF y preguntar
+en la misma sesión queda justo. Un DOCX no carga el layout.
 
 ### Simulador para integrar la plataforma
 
@@ -556,12 +609,14 @@ cd backend && MODO=simulador ../.venv-sim/bin/uvicorn app.api:app --port 8000
 
 Las marcas `#no-encontrada`, `#confianza-media`, `#confianza-baja` y `#error` en la pregunta
 fuerzan cada caso; `etapa` 1, 2 o 7 elige la respuesta, y `SIMULADOR_DEMORA_S` agrega una espera.
+`POST /ia/adjuntos` valida el archivo de verdad y devuelve un adjunto fijo; `#sin-texto` (422) y
+`#error` (503) en el nombre del archivo fuerzan esos casos.
 En `POST /ia/sugerir-proximos-pasos` hay una respuesta por cada etapa, armada con los datos de
 `guia.py`, y las marcas van en `contexto` o en `datos_etapa`. En
 Render: directorio raíz `backend`, build `pip install -r requirements-simulador.txt`, start
 `uvicorn app.api:app --host 0.0.0.0 --port $PORT` y las variables `MODO=simulador` y `CLAVE_SERVICIO`.
 
-**Clave de servicio.** Si `CLAVE_SERVICIO` tiene valor, los dos `POST` exigen
+**Clave de servicio.** Si `CLAVE_SERVICIO` tiene valor, los `POST` y el `DELETE` exigen
 `Authorization: Bearer <clave>` y responde 401 sin ella (`/salud` no la pide). La API la llama el
 backend de la plataforma, que ya valida la sesión de la persona: la clave nunca va en el navegador.
 En tu equipo se guarda con `python -m app.rag.secretos guardar CLAVE_SERVICIO` (desde `backend/`;
@@ -649,13 +704,15 @@ Sin `--upgrade`, `uv` conserva las versiones del lock y solo agrega o quita lo q
 ```text
 .
 ├── backend/
-│   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia y /ia/sugerir-proximos-pasos
+│   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia, /ia/sugerir-proximos-pasos
+│   │                       y /ia/adjuntos, DELETE /ia/adjuntos/{id}
+│   ├── app/adjuntos/       Adjuntos: extraer (Docling), seudonimizar, indice (en memoria), cargar
 │   ├── app/rag/            Consulta: config, modelos, indice, recuperar, guia, prompts, generar;
 │   │                       asistente por etapa: prompts_etapa, sugerir; flujo (pasos comunes de
 │   │                       los dos), contrato (forma de la respuesta), simulador (respuestas
 │   │                       fijas, sin modelos) y registro (log por consulta)
 │   ├── requirements-simulador.txt  Solo la API con MODO=simulador
-│   └── tests/              Tests con pytest, sin modelos ni Ollama
+│   └── tests/              Tests con pytest, sin modelos ni Ollama; datos/adjuntos/, ejemplos ficticios
 ├── ingesta/                PDF → JSON de Docling → corpus (con limpieza) → índice vectorial
 ├── data/
 │   ├── corpus/v3/          Corpus vigente, una página por línea (paginas.jsonl); v2, el anterior
