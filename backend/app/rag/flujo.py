@@ -7,7 +7,8 @@ sugerir.py (próximos pasos de una etapa).
                     ninguno pase
   contexto          los fragmentos como los lee el LLM: cada uno con su línea «fuente:»
   chat              llama al LLM y devuelve el texto y los tokens que usó; si el
-                    servidor falla, RuntimeError con qué hacer
+                    servidor falla, RuntimeError con qué hacer. Con `esquema`, pide
+                    la salida como JSON con esa forma (la revisión de entregables)
   tokens            tokens de una respuesta del LLM, como los informa su servidor
   armar_respuesta   la `Respuesta` del contrato: rechazo, confianza y fuentes
 
@@ -105,15 +106,26 @@ def tokens(r: ChatResponse) -> Tokens:
     return Tokens(prompt=uso.get("prompt_tokens"), respuesta=uso.get("completion_tokens"))
 
 
-def chat(mensajes: list[ChatMessage]) -> tuple[str, Tokens]:
+def _formato_json(esquema: dict) -> dict:
+    """Argumentos para que el servidor del LLM responda un JSON con la forma de `esquema` (JSON Schema)."""
+    if config.PROVEEDOR_LLM == "ollama":
+        return {"format": esquema}
+    return {"response_format": {"type": "json_schema",
+                                "json_schema": {"name": "respuesta", "schema": esquema, "strict": True}}}
+
+
+def chat(mensajes: list[ChatMessage], esquema: dict | None = None) -> tuple[str, Tokens]:
     """
     Texto del LLM para `mensajes` y los tokens que usó. RuntimeError con qué hacer si el servidor falla.
 
-    El cliente se crea en modelos.llm(); un proveedor nuevo agrega aquí sus errores
-    y, si informa los tokens en otro lugar, los lee en tokens().
+    Con `esquema` (JSON Schema), el servidor restringe la salida a un JSON con esa
+    forma: Ollama lo recibe en `format` y un servidor compatible con OpenAI en
+    `response_format`. El cliente se crea en modelos.llm(); un proveedor nuevo agrega
+    aquí sus errores, cómo pide JSON (_formato_json) y, si informa los tokens en otro
+    lugar, los lee en tokens().
     """
     try:
-        r = llm().chat(mensajes)
+        r = llm().chat(mensajes, **(_formato_json(esquema) if esquema else {}))
         return (r.message.content or "").strip(), tokens(r)
     # APITimeoutError hereda de APIConnectionError: va antes.
     except (httpx.TimeoutException, openai.APITimeoutError) as e:

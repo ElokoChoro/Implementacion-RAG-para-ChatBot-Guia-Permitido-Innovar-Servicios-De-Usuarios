@@ -14,11 +14,13 @@ modelos locales. Si la guía no responde, contesta «No encuentro esa informaci�
 | --- | --- |
 | `backend/app/rag/` | Consulta: `config`, `modelos`, `indice`, `recuperar`, `guia`, `prompts`, `generar`. Asistente por etapa: `prompts_etapa`, `sugerir`. Umbral, llamada al LLM y armado de la respuesta, comunes a los dos: `flujo`. Forma de la respuesta: `contrato`; respuestas fijas sin modelos: `simulador`; log por consulta: `registro` |
 | `backend/app/adjuntos/` | Adjuntos (PDF, DOCX; MD con `FORMATOS_ADJUNTO`): `extraer` (Docling, con validación sin Docling), `seudonimizar` (RUT, correo, teléfono), `indice` (en memoria, por adjunto), `cargar` (los tres); `tipos` lo comparten con la API y el simulador |
-| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos`, `POST /ia/adjuntos`, `DELETE /ia/adjuntos/{id}` y `GET /salud`; atiende las solicitudes de a una, con tope de cola (`COLA_MAXIMA`, `ESPERA_TURNO_S`) y 503 si no hay turno. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
+| `backend/app/revision/` | Revisión de entregables contra la guía: `rubricas` (lee `data/rubricas/`), `chequeos` (sin LLM: cantidad de perfiles, evidencia respaldada), `prompts`, `revisar` (resumen y un criterio por llamada, salida JSON); `tipos` lo comparte con la API y el simulador |
+| `backend/app/api.py` | API HTTP (FastAPI): `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos`, `POST /ia/adjuntos`, `DELETE /ia/adjuntos/{id}`, `POST /ia/revisar-entregable` y `GET /salud`; atiende las solicitudes de a una, con tope de cola (`COLA_MAXIMA`, `ESPERA_TURNO_S`) y 503 si no hay turno. Con `MODO=simulador` responde `simulador.py` y corre solo con `backend/requirements-simulador.txt`; con `CLAVE_SERVICIO`, exige `Authorization: Bearer` |
 | `backend/tests/` | Tests con pytest: umbral, confianza, fuentes, contrato y validación de la API, etapas y su contexto, sin modelos ni Ollama |
 | `ingesta/` | PDF → JSON de Docling (`extraer`) → corpus (`corpus`, que limpia el texto con `limpieza`) → índice vectorial (`indexar`) |
 | `data/corpus/v3/` | Corpus vigente, una página por línea (`paginas.jsonl`); `v2` es el anterior, sin limpieza |
 | `data/fuentes/guia.yaml` | Manifiesto y SHA-256 del PDF (el PDF no se versiona) |
+| `data/rubricas/` | Lo que pide la guía para cada herramienta, punto por punto, con página y paso (por ahora, `perfil_persona_usuaria.yaml`) |
 | `eval/` | Set de preguntas, scripts de comparación y calibración, resultados en `eval/resultados/` |
 | `supabase/migrations/` | Tabla `public.data_guia_fragmentos` con pgvector |
 | `src/` | Chatbot de prueba (React 19 + Vite + TypeScript). Llama a la API mediante el proxy de Vite (`/ia` → puerto 8000) |
@@ -45,6 +47,8 @@ cd backend && ../.venv/bin/python -m app.rag.recuperar "¿Qué es un mapa de mom
 cd backend && ../.venv/bin/python -m app.rag.generar "¿Qué es un plano del servicio?" --json
 cd backend && ../.venv/bin/python -m app.rag.prompts --etapa 7   # contexto de la etapa que recibe el LLM
 cd backend && ../.venv/bin/python -m app.rag.sugerir 4 --ver-prompt   # asistente por etapa, sin LLM
+cd backend && ../.venv/bin/python -m app.revision.revisar tests/datos/adjuntos/perfil.docx   # revisión (~50 s)
+cd backend && ../.venv/bin/python -m app.revision.revisar tests/datos/adjuntos/perfil.docx --ver-prompt   # sin LLM
 cd backend && ../.venv/bin/uvicorn app.api:app --port 8000   # API para el chatbot (npm run dev en otra terminal)
 cd backend && MODO=simulador ../.venv/bin/uvicorn app.api:app --port 8000   # API con respuestas fijas, sin modelos
 .venv/bin/python eval/calibrar_umbral.py                   # umbral y cortes de confianza
@@ -103,7 +107,7 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   de cada fuente (`Fuente`) con `CAMPOS_FUENTE` (`backend/tests/conftest.py`), copias de
   `RespuestaGuia` de `src/lib/rag.ts` y `Fuente` de `src/types.ts`; si el cambio se acuerda,
   actualiza los tres lugares, y también las respuestas de `simulador.py`.
-- **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `registro.py`, `prompts.py`, `prompts_etapa.py`, `guia.py`, `adjuntos/tipos.py` y `adjuntos/extraer.py`
+- **Simulador**: `contrato.py`, `simulador.py`, `config.py`, `secretos.py`, `registro.py`, `prompts.py`, `prompts_etapa.py`, `guia.py`, `adjuntos/tipos.py`, `adjuntos/extraer.py`, `revision/rubricas.py`, `revision/tipos.py` y `revision/prompts.py`
   no importan LlamaIndex, FlagEmbedding ni clientes de LLM (o lo hacen dentro de una función), para
   que `MODO=simulador` corra con `backend/requirements-simulador.txt`. `test_simulador.py` lo revisa.
 - **Corpus**: `data/corpus/v3/paginas.jsonl` no se edita a mano, ni su texto en Supabase; se
@@ -126,6 +130,14 @@ usa siempre `embedding()`, `reordenador()` y `llm()` de `modelos.py`, que crean 
   del archivo y su texto no van al log. `AdjuntoCargado` (`adjuntos/tipos.py`) es contrato como
   `Respuesta`: sus campos se comparan con `CAMPOS_ADJUNTO` y con `AdjuntoCargado` de `src/types.ts`.
   `tipos.py` y `extraer.validar()` no importan Docling ni LlamaIndex: los usa el simulador.
+- **Revisión de entregables**: no juzga la calidad del contenido, solo que esté lo que pide la guía
+  (acordado con UXLab). Cada criterio de `data/rubricas/*.yaml` sale de la página de la guía que cita;
+  cambiar un texto que lee el LLM (`descripcion`, `resumen`, `nombre`, `pide`, `parcial`) sube la
+  `version` de la rúbrica y `VERSION_PROMPT_REVISION` (`revision/prompts.py`), y `test_huella_prompt.py`
+  lo revisa. Un criterio `revisa: codigo` necesita su función en `chequeos.CHEQUEOS`. Nunca se marca
+  `cumple` sin una evidencia que esté en el documento (`revisar.veredicto`). El LLM ve el texto
+  seudonimizado; la página citada sale de la rúbrica, no del LLM. `Revision` (`revision/tipos.py`) es
+  contrato: sus campos se comparan con `CAMPOS_REVISION`; un cambio va también en `simulador.py`.
 - **Migraciones**: nunca edites una migración ya aplicada; agrega una nueva con fecha en el nombre.
   La tabla del índice tiene RLS activo y sin políticas a propósito: solo el backend la lee, con la
   conexión directa a Postgres.

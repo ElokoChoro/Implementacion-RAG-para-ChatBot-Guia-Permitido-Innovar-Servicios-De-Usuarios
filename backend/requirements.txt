@@ -21,3 +21,5 @@ uvicorn>=0.54,<0.55
 python-multipart>=0.0.20,<0.1
 # Lee los adjuntos (PDF, DOCX y MD, app/adjuntos/extraer.py) y, en la ingesta, el PDF de la guía
 docling>=2.131,<3
+# Lee las rúbricas de la revisión de entregables (data/rubricas/*.yaml, app/revision/rubricas.py)
+pyyaml>=6,<7

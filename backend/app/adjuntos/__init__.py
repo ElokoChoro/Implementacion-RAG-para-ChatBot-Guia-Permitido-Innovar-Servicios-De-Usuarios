@@ -36,6 +36,8 @@ indice.indexar(archivo: ArchivoExtraido, correspondencias: dict[str, str],
 indice.buscar(adjunto_id: str, consulta: str, top_k: int = config.TOP_K) -> list[NodeWithScore]
     Ordenados por el reranker. ErrorAdjunto(404) si no existe o venció.
 indice.correspondencias(adjunto_id: str) -> dict[str, str]
+indice.archivo(adjunto_id: str) -> ArchivoExtraido
+    El adjunto seudonimizado completo, para la revisión de entregables (app/revision/).
 indice.borrar(adjunto_id: str) -> bool
 indice.vigentes() -> int
 cargar.cargar_adjunto(nombre: str, datos: bytes) -> AdjuntoCargado

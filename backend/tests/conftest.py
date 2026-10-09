@@ -24,6 +24,10 @@ CAMPOS_FUENTE = {"seccion", "pagina", "fuente", "fragmento", "puntaje"}
 # Campos de `AdjuntoCargado` en src/types.ts: la respuesta de POST /ia/adjuntos.
 CAMPOS_ADJUNTO = {"adjunto_id", "nombre", "formato", "paginas", "fragmentos", "caracteres", "reemplazos",
                   "expira_en_s", "modo", "latencia_s"}
+# Campos de `Revision` (app/revision/tipos.py): la respuesta de POST /ia/revisar-entregable.
+CAMPOS_REVISION = {"herramienta", "nombre", "fuente", "version_rubrica", "rubrica_validada", "resumen", "criterios",
+                   "obligatorios", "obligatorios_cumplidos", "resultado", "modelo", "version_prompt", "modo",
+                   "latencia_s", "tokens_prompt", "tokens_respuesta", "llamadas_llm"}
 # Adjuntos de ejemplo, con datos ficticios (ver su README).
 ADJUNTOS = Path(__file__).resolve().parent / "datos" / "adjuntos"
 

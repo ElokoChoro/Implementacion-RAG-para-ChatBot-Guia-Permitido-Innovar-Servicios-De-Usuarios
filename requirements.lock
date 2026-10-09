@@ -533,6 +533,8 @@ pywin32-ctypes==0.2.3 ; sys_platform == 'win32'
     # via keyring
 pyyaml==6.0.3
     # via
+    #   -r backend/requirements.txt
+    #   -r ingesta/../backend/requirements.txt
     #   -r ingesta/requirements.txt
     #   accelerate
     #   chromadb
