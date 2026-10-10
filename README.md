@@ -595,6 +595,54 @@ RSS de `ps` sale mucho menor porque macOS comprime la memoria). Una pregunta sum
 (~1,2 GB) y el LLM corre aparte (gemma3:4b, ~3,3 GB): en un equipo de 8 GB, subir un PDF y preguntar
 en la misma sesión queda justo. Un DOCX no carga el layout.
 
+### Revisión de entregables
+
+`POST /ia/revisar-entregable` ([`backend/app/revision/`](backend/app/revision/)) revisa un documento
+ya subido con `POST /ia/adjuntos` contra lo que pide la guía para su herramienta. Por ahora hay
+rúbrica para el **Perfil de persona usuaria** (pp. 148–149). **No juzga si el contenido es bueno o
+malo**: revisa que esté lo que pide la guía y resume lo cargado en dos o tres frases.
+
+```bash
+curl -H 'Content-Type: application/json' -d '{"adjunto_id": "<adjunto_id>", "herramienta": "perfil_persona_usuaria"}' \
+  localhost:8000/ia/revisar-entregable
+cd backend && ../.venv/bin/python -m app.revision.revisar tests/datos/adjuntos/perfil.docx   # sin la API
+cd backend && ../.venv/bin/python -m app.revision.revisar tests/datos/adjuntos/perfil.docx --ver-prompt   # sin LLM
+```
+
+1. **Rúbrica.** Lo que pide la guía, punto por punto, en
+   [`data/rubricas/perfil_persona_usuaria.yaml`](data/rubricas/perfil_persona_usuaria.yaml): cada
+   criterio con su página y paso, si es **obligatorio** (las preguntas de la lámina) o
+   **recomendado** (lo que la guía sugiere), y cuándo está incompleto. `validada: false` hasta que
+   UXLab la apruebe.
+2. **Resumen.** Una llamada al LLM: quién es la persona, su rol, qué necesita, qué espera y cómo se
+   relaciona hoy con el servicio.
+3. **Un criterio a la vez.** Lo que se puede contar lo revisa el código (la cantidad de perfiles,
+   por sus títulos). El resto, el LLM, con el documento y el punto, y responde un JSON con la
+   evidencia (copiada del documento), el estado y lo que falta. El servidor del LLM recibe el JSON
+   Schema (`format` en Ollama, `response_format` en un servidor compatible con OpenAI). El documento
+   va igual en todas las llamadas, así que Ollama lo procesa una vez.
+4. **Nunca «cumple» sin evidencia.** Si el LLM marca «cumple» o «parcial» con una evidencia que no
+   está en el documento, el punto queda `no_evaluable` (❔) y se le pide a la persona que lo revise.
+5. **Datos personales.** El LLM recibe el texto seudonimizado; la respuesta vuelve con los valores
+   reales, porque va a quien subió el archivo.
+
+La respuesta trae `resumen`, cada criterio con `estado` (`cumple`, `parcial`, `no_cumple`,
+`no_evaluable`), `evidencia`, `sugerencia` y `cita` («p. 148, paso 3»), y `resultado`: el checklist en
+markdown para mostrar en el chat (✅ ⚠️ ❌ ❔; los recomendados que faltan van como sugerencias). La
+página sale de la rúbrica, no del LLM. Un documento de más de `MAX_CARACTERES_ENTREGABLE` (6000)
+caracteres se revisa con los fragmentos del adjunto más relevantes para cada punto. Errores: 422
+herramienta sin rúbrica, 404 adjunto vencido, 503 sin turno o sin LLM. `GET /salud` lista las
+herramientas en `herramientas_revision`.
+
+**Medido el 2026-10-09** en un Mac M2 de 8 GB con gemma3:4b y los ejemplos de
+`backend/tests/datos/adjuntos/`: `perfil.docx` en 49 s (11 llamadas al LLM) y `perfil.pdf` por la
+API en 54 s (12 llamadas: en el PDF no hay títulos, así que la cantidad de perfiles la decide el
+LLM), más 9,7 s de la subida. Con gemma3:4b la revisión corre, pero se equivoca: marcó la
+«Validación» como cumplida con la frase de las entrevistas, y las «Variables de caracterización» como
+incompletas con un texto que no tiene que ver. La comprobación de la evidencia solo revisa que la cita
+esté en el documento, no que responda al punto. La calidad se mide con un modelo más grande y un set
+de entregables con su revisión esperada.
+
 ### Simulador para integrar la plataforma
 
 Con `MODO=simulador`, la API responde con respuestas fijas de
@@ -610,7 +658,9 @@ cd backend && MODO=simulador ../.venv-sim/bin/uvicorn app.api:app --port 8000
 Las marcas `#no-encontrada`, `#confianza-media`, `#confianza-baja` y `#error` en la pregunta
 fuerzan cada caso; `etapa` 1, 2 o 7 elige la respuesta, y `SIMULADOR_DEMORA_S` agrega una espera.
 `POST /ia/adjuntos` valida el archivo de verdad y devuelve un adjunto fijo; `#sin-texto` (422) y
-`#error` (503) en el nombre del archivo fuerzan esos casos.
+`#error` (503) en el nombre del archivo fuerzan esos casos. `POST /ia/revisar-entregable` devuelve
+una revisión fija del perfil, armada con la rúbrica, para un `adjunto_id` que entregó el simulador
+(404 con cualquier otro).
 En `POST /ia/sugerir-proximos-pasos` hay una respuesta por cada etapa, armada con los datos de
 `guia.py`, y las marcas van en `contexto` o en `datos_etapa`. En
 Render: directorio raíz `backend`, build `pip install -r requirements-simulador.txt`, start
@@ -673,7 +723,8 @@ awk '/tokens_prompt=/ {n++; for (i=1; i<=NF; i++) if ($i ~ /^tokens_(prompt|resp
 Los tests de [`backend/tests/`](backend/tests/) prueban lo que decide el backend sin cargar modelos
 ni llamar a Ollama: el umbral, la confianza, las fuentes, la detección del rechazo del LLM, los
 campos del contrato, la validación de la API y las etapas con el contexto que recibe el LLM
-(contrastadas con el corpus `v3`) y las reglas de limpieza del corpus. Corren en segundos.
+(contrastadas con el corpus `v3`), las reglas de limpieza del corpus y las de la revisión de
+entregables (rúbricas, evidencia, estados), con un LLM de prueba. Corren en segundos.
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
@@ -704,9 +755,10 @@ Sin `--upgrade`, `uv` conserva las versiones del lock y solo agrega o quita lo q
 ```text
 .
 ├── backend/
-│   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia, /ia/sugerir-proximos-pasos
-│   │                       y /ia/adjuntos, DELETE /ia/adjuntos/{id}
+│   ├── app/api.py          API HTTP (FastAPI): POST /ia/consultar-guia, /ia/sugerir-proximos-pasos,
+│   │                       /ia/adjuntos y /ia/revisar-entregable, DELETE /ia/adjuntos/{id}
 │   ├── app/adjuntos/       Adjuntos: extraer (Docling), seudonimizar, indice (en memoria), cargar
+│   ├── app/revision/       Revisión de entregables: rubricas, chequeos (sin LLM), prompts, revisar
 │   ├── app/rag/            Consulta: config, modelos, indice, recuperar, guia, prompts, generar;
 │   │                       asistente por etapa: prompts_etapa, sugerir; flujo (pasos comunes de
 │   │                       los dos), contrato (forma de la respuesta), simulador (respuestas
@@ -716,7 +768,8 @@ Sin `--upgrade`, `uv` conserva las versiones del lock y solo agrega o quita lo q
 ├── ingesta/                PDF → JSON de Docling → corpus (con limpieza) → índice vectorial
 ├── data/
 │   ├── corpus/v3/          Corpus vigente, una página por línea (paginas.jsonl); v2, el anterior
-│   └── fuentes/guia.yaml   Manifiesto y SHA-256 del PDF (el PDF no se versiona)
+│   ├── fuentes/guia.yaml   Manifiesto y SHA-256 del PDF (el PDF no se versiona)
+│   └── rubricas/           Lo que pide la guía para cada herramienta, para revisar entregables
 ├── eval/                   Preguntas, scripts de comparación y calibración, resultados
 ├── supabase/migrations/    Tabla public.data_guia_fragmentos con pgvector
 ├── src/                    Chatbot de prueba (React + Vite), conectado a la API

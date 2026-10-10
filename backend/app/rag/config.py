@@ -62,6 +62,8 @@ MAX_PAGINAS_ADJUNTO    Páginas máximas de un PDF adjunto.
 MIN_CARACTERES_PAGINA  Caracteres por página, en promedio, bajo los que un PDF se trata como escaneado.
 MINUTOS_ADJUNTO        Minutos que un adjunto queda en memoria desde que se subió.
 MAX_ADJUNTOS           Adjuntos en memoria a la vez; al subir uno más se descarta el más antiguo.
+MAX_CARACTERES_ENTREGABLE  Largo máximo de un entregable que la revisión le pasa entero al LLM; uno
+                       más largo se revisa con los fragmentos más relevantes para cada punto.
 
 Si cambian EMBEDDINGS, CHUNK_TOKENS, CHUNK_OVERLAP o VERSION_CORPUS, hay que
 volver a indexar (python -m ingesta.indexar). En Chroma cada combinación usa su
@@ -256,6 +258,14 @@ MINUTOS_ADJUNTO = _env("MINUTOS_ADJUNTO", 60.0, float)
 # Cada adjunto ocupa poco (unas decenas de fragmentos con vectores de 1024 floats), pero guarda
 # datos de personas: se tienen los mínimos en memoria.
 MAX_ADJUNTOS = _env("MAX_ADJUNTOS", 5, int)
+
+# ---- Revisión de entregables ----------------------------------------------------
+# La revisión (app/revision/) le pasa el documento entero al LLM en cada punto de la rúbrica,
+# para que vea todo y Ollama reutilice lo ya procesado. 6000 caracteres son unos 1700 tokens
+# de gemma3:4b; con las instrucciones, el punto y la respuesta (~700 tokens) caben en
+# CONTEXTO_TOKENS (4096) con margen. Un perfil de una o dos páginas trae 2000 a 4000. Un
+# documento más largo se revisa con los TOP_K fragmentos del adjunto más relevantes para cada punto.
+MAX_CARACTERES_ENTREGABLE = _env("MAX_CARACTERES_ENTREGABLE", 6000, int)
 
 
 def coleccion() -> str:

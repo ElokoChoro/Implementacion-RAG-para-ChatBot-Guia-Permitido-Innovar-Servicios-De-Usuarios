@@ -1,0 +1,175 @@
+# Rúbrica del «Perfil de persona usuaria» (guía, pp. 148–149): lo que pide la guía,
+# punto por punto, para revisar un documento sin juzgar si el contenido es bueno.
+#
+# Cada punto sale de «¿Cómo se usa?» (p. 148) y de la lámina (p. 149). Los obligatorios
+# son las preguntas de la lámina (paso 3) y el resumen de variables (paso 4); los
+# recomendados, lo que la guía sugiere («les recomendamos», «pueden»).
+#
+# Campos de cada criterio (los lee backend/app/revision/rubricas.py):
+#   id          identificador estable; la plataforma lo usa para mostrar cada punto
+#   nombre      cómo se le muestra a la persona
+#   tipo        obligatorio (si falta, se marca ❌) o recomendado (si falta, va como sugerencia)
+#   revisa      llm (el LLM lo juzga) o codigo (un chequeo de chequeos.py; si no puede
+#               decidir, lo juzga el LLM)
+#   pagina      página de la guía que se cita; paso: el paso de «¿Cómo se usa?»
+#   pide        lo que pide la guía, como lo lee el LLM
+#   parcial     cuándo se marca ⚠️ (incompleto); sin este campo, el punto está o falta
+#   sugerencia  qué agregar si falta o está incompleto
+#
+# Cambiar un texto que lee el LLM (pide, parcial, descripcion, resumen) cambia la
+# revisión: sube `version` y anótalo abajo. `validada` pasa a true cuando UXLab la apruebe.
+#
+# Versiones
+#   1  2026-10-09  Primera versión, sacada de los pasos y la lámina de las pp. 148–149.
+
+id: perfil_persona_usuaria
+nombre: Perfil de persona usuaria
+version: "1"
+validada: false
+fuente: Personas › Perfil de persona usuaria, p. 148
+pagina: 148
+descripcion: >-
+  representa a un grupo de personas usuarias que comparten necesidades y formas de
+  relacionarse con un servicio.
+resumen: >-
+  quién es la persona, qué rol cumple, qué necesita, qué espera y cómo se relaciona hoy
+  con el servicio
+
+criterios:
+  - id: rol
+    nombre: Rol en el servicio
+    tipo: obligatorio
+    revisa: llm
+    pagina: 148
+    paso: 3
+    pide: >-
+      Qué rol cumple la persona en el servicio (persona usuaria final, PEC, derivador,
+      tomador de decisiones u otro) y cuánta influencia tiene sobre el resultado del servicio.
+    parcial: Dice el rol, pero no cuánta influencia tiene sobre el resultado del servicio.
+    sugerencia: >-
+      Indica qué rol cumple en el servicio (persona usuaria final, PEC, derivador, tomador
+      de decisiones u otro) y cuánto influye en su resultado.
+
+  - id: necesidades
+    nombre: Necesidades
+    tipo: obligatorio
+    revisa: llm
+    pagina: 148
+    paso: 3
+    pide: Qué necesita la persona con respecto al servicio y qué objetivos busca cumplir con él.
+    sugerencia: Agrega qué necesita la persona del servicio y qué objetivos busca cumplir.
+
+  - id: expectativas
+    nombre: Expectativas
+    tipo: obligatorio
+    revisa: llm
+    pagina: 148
+    paso: 3
+    pide: >-
+      Qué espera la persona del servicio, tanto del resultado (lo que obtiene) como del
+      proceso de atención (cómo la atienden).
+    parcial: Trae solo las expectativas del resultado o solo las del proceso de atención.
+    sugerencia: >-
+      Agrega qué espera la persona del resultado del servicio y del proceso de atención
+      (cómo quiere que la atiendan, cuánto espera tardar).
+
+  - id: relacion
+    nombre: Relación actual con el servicio
+    tipo: obligatorio
+    revisa: llm
+    pagina: 148
+    paso: 3
+    pide: >-
+      Cómo se relaciona hoy la persona con el servicio: si usarlo es voluntario u
+      obligatorio, si lo usa de forma periódica o esporádica, sus canales favoritos, cuánto
+      sabe del servicio y qué tan crítico es para ella cumplir su objetivo.
+    parcial: Menciona solo uno o dos de esos aspectos.
+    sugerencia: >-
+      Agrega si usar el servicio es voluntario u obligatorio, cada cuánto lo usa, por qué
+      canales, cuánto sabe de él y qué tan crítico es su objetivo.
+
+  - id: variables
+    nombre: Variables de caracterización
+    tipo: obligatorio
+    revisa: llm
+    pagina: 148
+    paso: 4
+    pide: >-
+      Un resumen de cómo se expresan en este perfil las variables que se usaron para definir
+      los perfiles (por ejemplo, el nivel de cada variable, de bajo a alto, o una tabla de
+      dimensiones).
+    parcial: Nombra variables, pero no dice cómo se expresan en este perfil.
+    sugerencia: >-
+      Resume cómo se expresa en este perfil cada variable que usaron para definir los
+      perfiles (por ejemplo, de bajo a alto).
+
+  - id: otras_caracteristicas
+    nombre: Otras características
+    tipo: recomendado
+    revisa: llm
+    pagina: 148
+    paso: 3
+    pide: >-
+      Otras características distintivas y relevantes de la persona, además de su rol,
+      necesidades, expectativas y relación con el servicio.
+    sugerencia: Agrega otras características distintivas y relevantes de la persona.
+
+  - id: nombre
+    nombre: Nombre del perfil
+    tipo: recomendado
+    revisa: llm
+    pagina: 148
+    paso: 5
+    pide: >-
+      Un nombre propio o un apodo para el perfil, que ayude a empatizar con la persona (no
+      basta con el título genérico «Perfil de persona usuaria»).
+    sugerencia: Ponle un nombre al perfil para ayudar a empatizar, sin caer en estereotipos.
+
+  - id: origen
+    nombre: Origen de la información
+    tipo: recomendado
+    revisa: llm
+    pagina: 148
+    paso: 7
+    pide: >-
+      De qué investigación o evidencia sale la información del perfil (por ejemplo,
+      entrevistas, encuestas, observación o datos de atención).
+    sugerencia: >-
+      Indica de qué investigación o evidencia sale la información: la guía advierte que el
+      perfil no es escritura creativa.
+
+  - id: validacion
+    nombre: Validación
+    tipo: recomendado
+    revisa: llm
+    pagina: 148
+    paso: 7
+    pide: >-
+      Si el perfil se validó con áreas de atención usuaria, estudios, canales u otras áreas
+      de la institución.
+    sugerencia: Valida el perfil con áreas de atención usuaria, estudios o canales, y anótalo.
+
+  - id: cantidad
+    nombre: Cantidad de perfiles
+    tipo: recomendado
+    revisa: codigo
+    pagina: 148
+    paso: 2
+    pide: >-
+      Si el documento describe varios perfiles, que sean entre tres y cinco. Un documento
+      con un solo perfil cumple.
+    sugerencia: La guía recomienda desarrollar entre tres y cinco perfiles en detalle.
+
+  - id: representacion
+    nombre: Citas o estimación
+    tipo: recomendado
+    revisa: llm
+    pagina: 148
+    paso: 6
+    pide: >-
+      Citas representativas de personas usuarias o una estimación de cuántas personas
+      comparten el perfil.
+    sugerencia: >-
+      Si tienes la información, agrega citas representativas de personas usuarias o una
+      estimación de cuántas personas comparten el perfil (las imágenes también sirven, pero
+      la revisión solo lee el texto).

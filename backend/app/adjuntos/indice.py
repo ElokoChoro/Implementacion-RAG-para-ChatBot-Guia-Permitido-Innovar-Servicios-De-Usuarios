@@ -15,7 +15,9 @@ guardan a lo más MAX_ADJUNTOS: al subir uno más se descarta el más antiguo. S
 la API se reinicia, los adjuntos se pierden y hay que volver a subirlos.
 
 Cada adjunto guarda también la tabla de correspondencias (marcador → valor
-real) de seudonimizar.py, que nunca entra al índice ni al texto de los fragmentos.
+real) de seudonimizar.py, que nunca entra al índice ni al texto de los fragmentos,
+y el archivo seudonimizado completo, que lee la revisión de entregables
+(app/revision/) cuando el documento cabe entero en el prompt.
 
 El `adjunto_id` sale de secrets.token_urlsafe: no se puede adivinar el de otra persona.
 
@@ -44,6 +46,7 @@ from app.rag.modelos import embedding, reordenador
 class _Entrada:
     indice: VectorStoreIndex
     adjunto: AdjuntoCargado
+    archivo: ArchivoExtraido  # seudonimizado
     correspondencias: dict[str, str]
     creado: float
     vence: float
@@ -114,8 +117,9 @@ def indexar(archivo: ArchivoExtraido, correspondencias: dict[str, str],
         _limpiar_vencidos(ahora)
         while len(_adjuntos) >= config.MAX_ADJUNTOS:
             del _adjuntos[min(_adjuntos, key=lambda i: _adjuntos[i].creado)]
-        _adjuntos[adjunto_id] = _Entrada(indice=indice, adjunto=adjunto, correspondencias=dict(correspondencias),
-                                         creado=ahora, vence=ahora + duracion)
+        _adjuntos[adjunto_id] = _Entrada(indice=indice, adjunto=adjunto, archivo=archivo,
+                                         correspondencias=dict(correspondencias), creado=ahora,
+                                         vence=ahora + duracion)
     return adjunto
 
 
@@ -136,6 +140,11 @@ def buscar(adjunto_id: str, consulta: str, top_k: int = config.TOP_K) -> list[No
     retriever = _entrada(adjunto_id).indice.as_retriever(
         similarity_top_k=max(config.RERANKER_CANDIDATOS, top_k))
     return reordenador().reordenar(retriever.retrieve(consulta), consulta, top_k)
+
+
+def archivo(adjunto_id: str) -> ArchivoExtraido:
+    """El adjunto seudonimizado, con sus secciones. ErrorAdjunto(404) si no existe o venció."""
+    return _entrada(adjunto_id).archivo
 
 
 def correspondencias(adjunto_id: str) -> dict[str, str]:

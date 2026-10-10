@@ -1,6 +1,7 @@
 """
-Simulador de `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y
-`POST /ia/adjuntos`: respuestas fijas, sin modelos (MODO=simulador).
+Simulador de `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos`,
+`POST /ia/adjuntos` y `POST /ia/revisar-entregable`: respuestas fijas, sin modelos
+(MODO=simulador).
 
 Sirve para que la plataforma integre la API antes de tener los modelos a mano:
 devuelve una `Respuesta` (contrato.py) con los mismos campos, la misma
@@ -43,11 +44,20 @@ uno vigente y 404 con cualquier otro. Marcas en el nombre del archivo:
     #sin-texto         422, como un PDF escaneado
     #error             503, como cuando fallan los modelos
 
+Revisión de entregables (revisar_entregable)
+--------------------------------------------
+Con un id que entregó cargar_adjunto, devuelve una `Revision` fija armada con la
+rúbrica de la herramienta. Los estados, la evidencia y el resumen salen de una
+revisión real del perfil de ejemplo (tests/datos/adjuntos/perfil.docx, gemma3:4b,
+2026-10-09), acortados. Con cualquier otro id, 404, como un adjunto vencido. El
+archivo subido no cambia la respuesta.
+
 Prueba rápida, desde backend/:
     python -m app.rag.simulador "¿Qué es un plano del servicio?"
     python -m app.rag.simulador "¿Cuánto cuesta? #no-encontrada" --etapa 1
     python -m app.rag.simulador --sugerir --etapa 4 --contexto "Licencias médicas #confianza-media"
     python -m app.rag.simulador --adjunto tests/datos/adjuntos/perfil.pdf
+    python -m app.rag.simulador --revisar tests/datos/adjuntos/perfil.docx
 """
 from __future__ import annotations
 
@@ -59,11 +69,14 @@ import time
 from pathlib import Path
 
 from app.adjuntos.extraer import validar
-from app.adjuntos.tipos import AdjuntoCargado, ErrorAdjunto
+from app.adjuntos.tipos import NO_DISPONIBLE, AdjuntoCargado, ErrorAdjunto
 from app.rag import config, guia
 from app.rag.contrato import Fuente, Respuesta
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SUGERENCIA
 from app.rag.prompts_etapa import VERSION_PROMPT_ETAPA
+from app.revision import rubricas
+from app.revision.prompts import VERSION_PROMPT_REVISION
+from app.revision.tipos import NO_EVALUABLE, CriterioRevisado, Revision, texto_revision
 
 # Mejor puntaje del reranker para cada confianza simulada, dentro de los cortes
 # por defecto (CONFIANZA_ALTA 0,9 y CONFIANZA_MEDIA 0,7; UMBRAL 0,5).
@@ -252,6 +265,57 @@ def adjuntos_vigentes() -> int:
         return len(_adjuntos)
 
 
+# De una revisión real del perfil de ejemplo (gemma3:4b, 2026-10-09), acortada: id → (estado, evidencia, falta).
+REVISION_PERFIL = {
+    "rol": ("parcial", "conductora de 68 años que renueva su licencia cada tres años y vive en un sector rural.",
+            "No dice cuánta influencia tiene sobre el resultado del servicio."),
+    "necesidades": ("cumple", "saber qué documentos llevar antes de viajar a la municipalidad y poder pedir hora "
+                              "sin usar internet.", ""),
+    "expectativas": ("cumple", "Expectativas del resultado: salir con la licencia renovada en una sola visita.", ""),
+    "relacion": ("parcial", "llama por teléfono, pero nadie contesta en la tarde",
+                 "No dice si el uso es voluntario u obligatorio ni qué tan crítico es su objetivo."),
+    "variables": ("no_cumple", "", ""),
+    "otras_caracteristicas": ("cumple", "vive en un sector rural", ""),
+    "nombre": ("no_cumple", "", ""),
+    "origen": ("cumple", "Se entrevistó a 12 personas entre agosto y septiembre de 2026.", ""),
+    "validacion": ("no_cumple", "", ""),
+    "cantidad": ("cumple", "El documento describe un perfil: «Perfil: persona mayor que renueva su licencia».", ""),
+    "representacion": ("no_cumple", "", ""),
+}
+RESUMEN_PERFIL = ("Perfil de una conductora de 68 años de un sector rural que renueva su licencia cada tres años. "
+                  "Necesita saber qué documentos llevar y pedir hora sin internet, y espera renovarla en una sola "
+                  "visita. Hoy llama por teléfono, pero nadie contesta en la tarde.")
+
+
+def revisar_entregable(adjunto_id: str, herramienta: str = "perfil_persona_usuaria") -> Revision:
+    """
+    `Revision` fija con la forma de revisar.revisar(), armada con la rúbrica de `herramienta`.
+
+    ErrorAdjunto(404) si cargar_adjunto no entregó `adjunto_id`; KeyError si la
+    herramienta no tiene rúbrica. Un criterio que no está en REVISION_PERFIL queda «no_cumple».
+    """
+    rubrica = rubricas.cargar(herramienta)
+    t0 = _esperar()
+    with _candado:
+        if adjunto_id not in _adjuntos:
+            raise ErrorAdjunto(NO_DISPONIBLE, 404)
+    criterios = []
+    for c in rubrica.criterios:
+        estado, evidencia, falta = REVISION_PERFIL.get(c.id, ("no_cumple", "", ""))
+        sugerencia = {"cumple": "", "no_evaluable": NO_EVALUABLE}.get(estado, f"{falta} {c.sugerencia}".strip())
+        criterios.append(CriterioRevisado(id=c.id, nombre=c.nombre, tipo=c.tipo, estado=estado, evidencia=evidencia,
+                                          sugerencia=sugerencia, pagina=c.pagina, cita=c.cita(),
+                                          revisado_con=c.revisa))
+    obligatorios = [c for c in criterios if c.tipo == "obligatorio"]
+    return Revision(herramienta=rubrica.id, nombre=rubrica.nombre, fuente=rubrica.fuente,
+                    version_rubrica=rubrica.version, rubrica_validada=rubrica.validada, resumen=RESUMEN_PERFIL,
+                    criterios=criterios, obligatorios=len(obligatorios),
+                    obligatorios_cumplidos=sum(c.estado == "cumple" for c in obligatorios),
+                    resultado=texto_revision(rubrica.nombre, rubrica.fuente, RESUMEN_PERFIL, criterios),
+                    modelo="simulador", version_prompt=VERSION_PROMPT_REVISION, modo="simulador",
+                    latencia_s=round(time.time() - t0, 1), llamadas_llm=0)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("pregunta", nargs="?", default="", help="pregunta, con las marcas que quieras probar")
@@ -259,7 +323,12 @@ def main():
     ap.add_argument("--sugerir", action="store_true", help="próximos pasos de --etapa, como sugerir.py")
     ap.add_argument("--contexto", help="contexto del proyecto, con --sugerir (aquí van las marcas)")
     ap.add_argument("--adjunto", type=Path, help="archivo a «subir», como POST /ia/adjuntos")
+    ap.add_argument("--revisar", type=Path, help="archivo a «subir» y revisar, como POST /ia/revisar-entregable")
     args = ap.parse_args()
+    if args.revisar:
+        adjunto = cargar_adjunto(args.revisar.name, args.revisar.read_bytes())
+        print(revisar_entregable(adjunto.adjunto_id).resultado)
+        return
     if args.adjunto:
         print(json.dumps(cargar_adjunto(args.adjunto.name, args.adjunto.read_bytes()).a_dict(),
                          ensure_ascii=False, indent=2))

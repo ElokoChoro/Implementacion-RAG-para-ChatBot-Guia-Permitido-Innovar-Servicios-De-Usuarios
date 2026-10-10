@@ -7,3 +7,5 @@ uvicorn>=0.54,<0.55
 python-multipart>=0.0.20,<0.1
 # Lee la configuración del .env de la raíz
 python-dotenv>=1.2,<2
+# El simulador de la revisión de entregables arma su respuesta con las rúbricas (data/rubricas/*.yaml)
+pyyaml>=6,<7

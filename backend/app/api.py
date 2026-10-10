@@ -11,13 +11,18 @@ API HTTP del módulo RAG, para la interfaz de chat de demo y la plataforma SSP-U
                                      FORMATOS_ADJUNTO) → `AdjuntoCargado` (app/adjuntos/):
                                      el archivo leído, seudonimizado e indexado en memoria
     DELETE /ia/adjuntos/{id}         quita el adjunto de la memoria (204, o 404 si no está)
+    POST /ia/revisar-entregable      {"adjunto_id": "...", "herramienta": "perfil_persona_usuaria"}
+                                     → `Revision` (app/revision/): resumen breve de lo cargado y
+                                       checklist de lo que pide la guía para esa herramienta
     GET  /salud                      configuración con la que corre y si los modelos ya
                                      están cargados (`listo`), sin cargarlos
 
 Las preguntas se atienden de a una: bge-m3, el reranker y el LLM comparten la
 memoria del equipo y dos consultas a la vez no caben en un Mac de 8 GB. Los
 adjuntos esperan el mismo turno, porque usan bge-m3 y Docling; antes de pedirlo
-se valida el archivo, para que uno inválido no haga cola. Mientras
+se valida el archivo, para que uno inválido no haga cola. La revisión de un
+entregable también espera turno: son unas diez llamadas seguidas al LLM (~50 s
+con el perfil de ejemplo y gemma3:4b). Mientras
 se atiende una, esperan turno hasta COLA_MAXIMA más, cada una ESPERA_TURNO_S
 como máximo; las que no caben o no alcanzan turno reciben 503 con Retry-After,
 para que quien llama reintente más tarde. /salud no espera turno.
@@ -68,14 +73,24 @@ from app.adjuntos.extraer import validar
 from app.adjuntos.tipos import NO_DISPONIBLE, AdjuntoCargado, ErrorAdjunto
 from app.rag import config, registro
 from app.rag.contrato import Respuesta
+from app.revision import rubricas
+from app.revision.tipos import Revision
 
 if config.MODO == "simulador":
-    from app.rag.simulador import adjuntos_vigentes, borrar_adjunto, cargar_adjunto, responder, sugerir
+    from app.rag.simulador import (
+        adjuntos_vigentes,
+        borrar_adjunto,
+        cargar_adjunto,
+        responder,
+        revisar_entregable,
+        sugerir,
+    )
 else:
     from app.adjuntos.cargar import cargar_adjunto
     from app.adjuntos.indice import borrar as borrar_adjunto, vigentes as adjuntos_vigentes
     from app.rag.generar import responder
     from app.rag.sugerir import sugerir
+    from app.revision.revisar import revisar as revisar_entregable
 
 registro.configurar()
 log = logging.getLogger("app.api")
@@ -106,6 +121,12 @@ class SolicitudEtapa(BaseModel):
         examples=["Renovación del permiso de circulación"])
     datos_etapa: dict[str, Any] | None = Field(
         default=None, description="avance registrado en la etapa", examples=[{"mapa_momentos_criticos": "pendiente"}])
+
+
+class SolicitudRevision(BaseModel):
+    adjunto_id: str = Field(min_length=1, max_length=64, description="el que devolvió POST /ia/adjuntos")
+    herramienta: str = Field(default="perfil_persona_usuaria", examples=["perfil_persona_usuaria"],
+                             description="herramienta de la guía con que se hizo el documento (ver /salud)")
 
 
 @cache
@@ -261,6 +282,27 @@ def quitar_adjunto(adjunto_id: str) -> Response:
     return Response(status_code=204)
 
 
+@app.post("/ia/revisar-entregable", response_model=Revision, dependencies=[Depends(_verificar_clave)])
+def revisar_adjunto(solicitud: SolicitudRevision) -> dict:
+    # Se valida la herramienta antes de pedir turno: una que no existe no hace cola.
+    if solicitud.herramienta not in rubricas.disponibles():
+        raise HTTPException(status_code=422, detail=f"No hay rúbrica para «{solicitud.herramienta}». "
+                                                    f"Usa una de: {', '.join(rubricas.disponibles())}.")
+    try:
+        revision, espera = _con_turno("revisar-entregable",
+                                      lambda: revisar_entregable(solicitud.adjunto_id, solicitud.herramienta))
+    except ErrorAdjunto as e:
+        log.info(registro.campos(ruta="revisar-entregable", estado=e.estado))
+        raise HTTPException(status_code=e.estado, detail=e.mensaje) from e
+    _listo.set()
+    log.info(registro.campos(ruta="revisar-entregable", estado=200, herramienta=revision.herramienta,
+                             espera_s=espera, latencia_s=revision.latencia_s,
+                             obligatorios=f"{revision.obligatorios_cumplidos}/{revision.obligatorios}",
+                             llamadas_llm=revision.llamadas_llm, modo=revision.modo,
+                             prompt=revision.version_prompt))
+    return revision.a_dict()
+
+
 @app.get("/salud")
 async def salud() -> dict:
     # `async def`: corre en el bucle del servidor y no en el grupo de hilos, que pueden
@@ -270,4 +312,4 @@ async def salud() -> dict:
             "llm_url": config.url_llm(), "llm": config.LLM, "embeddings": config.EMBEDDINGS,
             "reranker": config.RERANKER, "umbral": config.UMBRAL,
             "formatos_adjunto": list(config.FORMATOS_ADJUNTO), "max_mb_adjunto": config.MAX_MB_ADJUNTO,
-            "adjuntos_vigentes": adjuntos_vigentes()}
+            "adjuntos_vigentes": adjuntos_vigentes(), "herramientas_revision": rubricas.disponibles()}
