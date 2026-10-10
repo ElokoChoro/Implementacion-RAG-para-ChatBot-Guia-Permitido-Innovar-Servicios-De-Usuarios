@@ -1,6 +1,6 @@
 """
-Simulador de `POST /ia/consultar-guia` y `POST /ia/sugerir-proximos-pasos`:
-respuestas fijas, sin modelos (MODO=simulador).
+Simulador de `POST /ia/consultar-guia`, `POST /ia/sugerir-proximos-pasos` y
+`POST /ia/adjuntos`: respuestas fijas, sin modelos (MODO=simulador).
 
 Sirve para que la plataforma integre la API antes de tener los modelos a mano:
 devuelve una `Respuesta` (contrato.py) con los mismos campos, la misma
@@ -33,17 +33,33 @@ citas tienen la forma de la línea «fuente:» del corpus («Actividad, p. N» y
 «Actividad › Herramienta, p. N»). `contexto` y `datos_etapa` no cambian el
 texto; solo se buscan en ellos las mismas marcas.
 
+Adjuntos (cargar_adjunto, borrar_adjunto)
+-----------------------------------------
+POST /ia/adjuntos valida el archivo de verdad (formato, contenido y tamaño, con
+extraer.validar, que no usa Docling) y devuelve un `AdjuntoCargado` fijo: 6
+fragmentos, 3 páginas si es PDF y 4 datos personales reemplazados. No lee el
+texto. Los ids que entrega quedan en memoria, para que DELETE responda 204 con
+uno vigente y 404 con cualquier otro. Marcas en el nombre del archivo:
+    #sin-texto         422, como un PDF escaneado
+    #error             503, como cuando fallan los modelos
+
 Prueba rápida, desde backend/:
     python -m app.rag.simulador "¿Qué es un plano del servicio?"
     python -m app.rag.simulador "¿Cuánto cuesta? #no-encontrada" --etapa 1
     python -m app.rag.simulador --sugerir --etapa 4 --contexto "Licencias médicas #confianza-media"
+    python -m app.rag.simulador --adjunto tests/datos/adjuntos/perfil.pdf
 """
 from __future__ import annotations
 
 import argparse
 import json
+import secrets
+import threading
 import time
+from pathlib import Path
 
+from app.adjuntos.extraer import validar
+from app.adjuntos.tipos import AdjuntoCargado, ErrorAdjunto
 from app.rag import config, guia
 from app.rag.contrato import Fuente, Respuesta
 from app.rag.prompts import MENSAJE_NO_ENCONTRADA, SUGERENCIA
@@ -193,13 +209,61 @@ def sugerir(etapa: int, contexto: str | dict | None = None, datos_etapa: dict | 
                      puntaje=puntaje, latencia_s=round(time.time() - t0, 1), **comunes)
 
 
+_adjuntos: set[str] = set()
+_candado = threading.Lock()
+
+
+def cargar_adjunto(nombre: str, datos: bytes) -> AdjuntoCargado:
+    """
+    `AdjuntoCargado` fijo para un archivo válido, con un id nuevo.
+
+    Valida como cargar.py (ErrorAdjunto 413, 415 o 422). Con #sin-texto en el
+    nombre, 422; con #error, RuntimeError (503).
+    """
+    t0 = _esperar()
+    formato = validar(nombre, datos)
+    if "#error" in nombre.lower():
+        raise RuntimeError("Simulador: error pedido con #error. Con los modelos, aquí llega el motivo "
+                           "(por ejemplo, que no hay memoria para cargar bge-m3).")
+    if "#sin-texto" in nombre.lower():
+        raise ErrorAdjunto("El PDF parece escaneado: no tiene texto que pueda leer. Súbelo como DOCX o como PDF "
+                           "exportado desde el editor de texto.")
+    adjunto_id = secrets.token_urlsafe(16)
+    with _candado:
+        _adjuntos.add(adjunto_id)
+    return AdjuntoCargado(adjunto_id=adjunto_id, nombre=nombre, formato=formato,
+                          paginas=3 if formato == "pdf" else None, fragmentos=6, caracteres=4200,
+                          reemplazos={"RUT": 2, "CORREO": 1, "TELEFONO": 1},
+                          expira_en_s=int(config.MINUTOS_ADJUNTO * 60), modo="simulador",
+                          latencia_s=round(time.time() - t0, 1))
+
+
+def borrar_adjunto(adjunto_id: str) -> bool:
+    """True si el id lo entregó cargar_adjunto y no se había borrado."""
+    with _candado:
+        if adjunto_id not in _adjuntos:
+            return False
+        _adjuntos.remove(adjunto_id)
+        return True
+
+
+def adjuntos_vigentes() -> int:
+    with _candado:
+        return len(_adjuntos)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("pregunta", nargs="?", default="", help="pregunta, con las marcas que quieras probar")
     ap.add_argument("--etapa", type=int, help="etapa del proyecto (1-7): elige la respuesta fija")
     ap.add_argument("--sugerir", action="store_true", help="próximos pasos de --etapa, como sugerir.py")
     ap.add_argument("--contexto", help="contexto del proyecto, con --sugerir (aquí van las marcas)")
+    ap.add_argument("--adjunto", type=Path, help="archivo a «subir», como POST /ia/adjuntos")
     args = ap.parse_args()
+    if args.adjunto:
+        print(json.dumps(cargar_adjunto(args.adjunto.name, args.adjunto.read_bytes()).a_dict(),
+                         ensure_ascii=False, indent=2))
+        return
     if args.sugerir:
         if args.etapa is None:
             ap.error("--sugerir necesita --etapa.")

@@ -107,7 +107,9 @@ distro==1.9.0
 doclang==0.7.3
     # via docling-core
 docling==2.132.0
-    # via -r ingesta/requirements.txt
+    # via
+    #   -r backend/requirements.txt
+    #   -r ingesta/../backend/requirements.txt
 docling-core==2.99.0
     # via
     #   docling-parse
@@ -515,6 +517,10 @@ python-dotenv==1.2.4
     #   docling-slim
     #   pydantic-settings
     #   uvicorn
+python-multipart==0.0.32
+    # via
+    #   -r backend/requirements.txt
+    #   -r ingesta/../backend/requirements.txt
 python-oxmsg==0.0.2
     # via docling-slim
 python-pptx==1.0.2

@@ -9,6 +9,8 @@ Desde la raíz del repositorio:
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from llama_index.core.schema import NodeWithScore, TextNode
 
@@ -19,6 +21,11 @@ CAMPOS_CONTRATO = {"resultado", "encontrada", "confianza", "fuentes", "modelo", 
                    "modo", "puntaje", "latencia_s"}
 # Campos de `Fuente` en src/types.ts: cada elemento de `fuentes`.
 CAMPOS_FUENTE = {"seccion", "pagina", "fuente", "fragmento", "puntaje"}
+# Campos de `AdjuntoCargado` en src/types.ts: la respuesta de POST /ia/adjuntos.
+CAMPOS_ADJUNTO = {"adjunto_id", "nombre", "formato", "paginas", "fragmentos", "caracteres", "reemplazos",
+                  "expira_en_s", "modo", "latencia_s"}
+# Adjuntos de ejemplo, con datos ficticios (ver su README).
+ADJUNTOS = Path(__file__).resolve().parent / "datos" / "adjuntos"
 
 
 @pytest.fixture(autouse=True)

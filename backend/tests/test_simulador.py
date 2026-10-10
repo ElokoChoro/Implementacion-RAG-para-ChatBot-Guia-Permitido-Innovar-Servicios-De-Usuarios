@@ -172,9 +172,10 @@ def test_modo_simulador_no_importa_los_modelos() -> None:
     # tiene que correr solo con backend/requirements-simulador.txt.
     codigo = ("import sys, app.api; "
               "pesados = sorted({m.split('.')[0] for m in sys.modules} & "
-              "{'llama_index', 'FlagEmbedding', 'torch', 'ollama', 'openai', 'chromadb'}); "
-              "print(app.api.responder.__module__, app.api.sugerir.__module__, pesados)")
+              "{'llama_index', 'FlagEmbedding', 'torch', 'ollama', 'openai', 'chromadb', 'docling'}); "
+              "print(app.api.responder.__module__, app.api.sugerir.__module__, "
+              "app.api.cargar_adjunto.__module__, pesados)")
     salida = subprocess.run([sys.executable, "-c", codigo], cwd=BACKEND, capture_output=True, text=True,
                             env={**os.environ, "MODO": "simulador"}, check=True).stdout
 
-    assert salida.strip() == "app.rag.simulador app.rag.simulador []"
+    assert salida.strip() == "app.rag.simulador app.rag.simulador app.rag.simulador []"
